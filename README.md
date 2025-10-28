@@ -77,6 +77,87 @@ curl -X POST http://localhost:8000/chat \
   -d '{"message": "计算 (10 + 5) * 3"}'
 ```
 
+## Project Architecture
+
+### 🔍 架构关系
+
+```
+Flask HTTP Server → llama-cpp-python → Qwen2 Model
+       ↓
+   FastMCP Server → Tool Execution Layer
+```
+
+**关键说明**：
+- Flask 直接调用 llama-cpp-python 进行 LLM 推理
+- FastMCP 只负责工具注册和执行，不参与 LLM 调用
+- LLM 和 FastMCP 是平行关系，都通过 Flask 协调
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FastMCP Demo Architecture                │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User (curl)   │    │   Docker Host   │    │  GitHub Repo    │
+│                 │    │                 │    │                 │
+│ curl POST       │    │ ./models/       │    │ fastmcp_demo/   │
+│ /chat           │    │ ├── qwen2-*.gguf│    │ ├── server.py   │
+│                 │    │                 │    │ ├── tools.py    │
+└─────────────────┘    └─────────────────┘    │ ├── Dockerfile  │
+         │                       │            │ ├── docker-     │
+         │                       │            │ │   compose.yml │
+         │                       │            │ └── README.md   │
+         │                       │            └─────────────────┘
+         │                       │                     │
+         │                       │                     │ git clone
+         │                       │                     │
+         ▼                       ▼                     ▼
+┌───────────────────────────────────────────────────────────────┐
+│                    Docker Container                           │
+│                                                               │
+│  ┌─────────────────┐    ┌─────────────────┐                   │
+│  │   Flask HTTP    │    │   llama-cpp-    │                   │
+│  │   API Server    │    │   python        │                   │
+│  │   (Port 8000)   │    │                 │                   │
+│  │                 │    │                 │                   │
+│  │ /health         │    │ CPU Inference   │                   │
+│  │ /chat           │    │ n_threads=4     │                   │
+│  │ /tools          │    │ n_ctx=2048      │                   │
+│  └─────────────────┘    └─────────────────┘                   │
+│           │                       │                           │
+│           │                       │                           │
+│           ▼                       ▼                           │
+│  ┌─────────────────┐    ┌─────────────────┐                   │
+│  │   FastMCP       │    │   Qwen2-1.5B    │                   │
+│  │   Server        │    │   Model         │                   │
+│  │                 │    │                 │                   │
+│  │ Tool Registry   │    │ GGUF Format     │                   │
+│  │ Tool Calling    │    │ ~1.2GB          │                   │
+│  │ MCP Protocol    │    │ Volume Mount    │                   │
+│  └─────────────────┘    └─────────────────┘                   │
+│           │                       │                           │
+│           │                       │                           │
+│           ▼                       ▼                           │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              Tool Execution Layer                       │  │
+│  │  (add, multiply, calculate functions)                   │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────┘
+
+Data Flow:
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│User Req │───▶│HTTP API │───▶│LLM Infr │───▶│MCP Tool │───▶│Tool Exec│
+│"25+17"  │    │Flask    │    │Qwen2    │    │Call     │    │add()    │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+     │              │              │              │              │
+     │              │              │              │              │
+     ▼              ▼              ▼              ▼              ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│Response │◀───│JSON Resp│◀───│Tool Res │◀───│MCP Exec │◀───│Calc Res │
+│"42"     │    │Format   │    │Parse    │    │FastMCP  │    │42       │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘
+```
+
 ## 项目结构
 
 ```
