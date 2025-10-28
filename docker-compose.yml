@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  fastmcp-demo:
+    # 构建Docker镜像
+    build: .
+    
+    # 端口映射
+    # 宿主机8000端口 -> 容器8000端口
+    ports:
+      - "8000:8000"
+    
+    # 卷挂载配置
+    # 重要：模型文件通过Volume挂载，不会复制到容器中
+    # ./models: 宿主机模型目录（用户需要手动下载模型文件到这里）
+    # /app/models: 容器内模型目录（应用读取模型的位置）
+    volumes:
+      - ./models:/app/models
+    
+    # 环境变量
+    # PYTHONUNBUFFERED=1: 确保Python输出实时显示，便于调试
+    environment:
+      - PYTHONUNBUFFERED=1
+    
+    # 重启策略
+    # unless-stopped: 除非手动停止，否则总是重启
+    restart: unless-stopped

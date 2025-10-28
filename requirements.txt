@@ -1,0 +1,4 @@
+fastmcp>=0.1.0
+llama-cpp-python>=0.2.0
+flask>=2.3.0
+requests>=2.31.0
