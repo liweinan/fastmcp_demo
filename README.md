@@ -93,30 +93,66 @@ curl http://localhost:8000/tools
 ```
 
 #### 聊天测试
+
+**注意**: 如果中文显示为 Unicode 转义字符（如 `\u6211`），可以使用 `jq` 或 `python3 -m json.tool` 来正确显示：
+
 ```bash
 # 简单加法
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 5 + 3"}'
-# 预期输出: {"response":"计算结果: 8","tools_available":["add","multiply","calculate"]}
+  -d '{"message": "计算 5 + 3"}' | jq .
+# 预期输出:
+# {
+#   "response": "计算结果: 8",
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
 
 # 乘法运算
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 4 * 7"}'
-# 预期输出: {"response":"计算结果: 28","tools_available":["add","multiply","calculate"]}
+  -d '{"message": "计算 4 * 7"}' | jq .
+# 预期输出:
+# {
+#   "response": "计算结果: 28", 
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
 
 # 表达式计算
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 2+3*4"}'
-# 预期输出: {"response":"计算结果: 5","tools_available":["add","multiply","calculate"]}
+  -d '{"message": "计算 2+3*4"}' | jq .
+# 预期输出:
+# {
+#   "response": "计算结果: 5",
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
 
 # 非计算消息
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好，今天天气怎么样？"}'
-# 预期输出: {"response":"我收到了你的消息: 你好，今天天气怎么样？。这是一个模拟的AI回复。","tools_available":["add","multiply","calculate"]}
+  -d '{"message": "你好，今天天气怎么样？"}' | jq .
+# 预期输出:
+# {
+#   "response": "我收到了你的消息: 你好，今天天气怎么样？。这是一个模拟的AI回复。",
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
+
+# 英文消息
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "tell me todays date"}' | jq .
+# 预期输出:
+# {
+#   "response": "我收到了你的消息: tell me todays date。这是一个模拟的AI回复。",
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
+```
+
+**替代方案**（如果系统没有安装 `jq`）：
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "计算 5 + 3"}' | python3 -m json.tool
 ```
 
 ## Project Architecture
