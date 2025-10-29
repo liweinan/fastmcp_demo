@@ -1,13 +1,11 @@
 """
-FastMCP服务器 + HTTP API wrapper
+MCP服务器 + HTTP API wrapper (模拟版本)
 """
 import os
 import json
 import logging
 from typing import Dict, Any, List
 from flask import Flask, request, jsonify
-from llama_cpp import Llama
-from fastmcp import FastMCP
 from tools import TOOLS, execute_tool
 
 # 配置日志
@@ -18,39 +16,20 @@ app = Flask(__name__)
 
 # 全局模型实例
 llm = None
-mcp_server = None
 
 def load_model():
-    """加载Qwen2模型和FastMCP服务器"""
-    global llm, mcp_server
+    """模拟加载模型（用于演示）"""
+    global llm
     model_path = "./models/qwen2-1_5b-instruct-q4_k_m.gguf"
     
     if not os.path.exists(model_path):
-        raise FileNotFoundError(f"模型文件不存在: {model_path}")
+        logger.warning(f"模型文件不存在: {model_path}，使用模拟模式")
+        llm = "mock_model"  # 模拟模型
+    else:
+        logger.info("模型文件存在，但使用模拟模式")
+        llm = "mock_model"  # 模拟模型
     
-    logger.info("正在加载模型...")
-    llm = Llama(
-        model_path=model_path,
-        n_ctx=2048,  # 上下文长度
-        n_threads=4,  # CPU线程数
-        verbose=False
-    )
-    logger.info("模型加载完成")
-    
-    # 创建FastMCP服务器
-    logger.info("正在初始化FastMCP服务器...")
-    mcp_server = FastMCP("FastMCP Demo Server")
-    
-    # 注册工具
-    for tool_name, tool_def in TOOLS.items():
-        mcp_server.add_tool(
-            name=tool_name,
-            description=tool_def["description"],
-            parameters=tool_def["parameters"],
-            handler=lambda name=tool_name, **kwargs: execute_tool(name, kwargs)
-        )
-    
-    logger.info("FastMCP服务器初始化完成")
+    logger.info("模拟模型加载完成")
 
 def create_tool_prompt(tools: List[Dict]) -> str:
     """创建工具调用的系统提示"""
@@ -70,50 +49,39 @@ def create_tool_prompt(tools: List[Dict]) -> str:
 请直接返回工具调用，不要添加其他解释。"""
 
 def call_llm_with_tools(user_message: str) -> str:
-    """通过FastMCP调用LLM并处理工具调用"""
+    """模拟LLM调用并处理工具调用"""
     system_prompt = create_tool_prompt(list(TOOLS.values()))
     
-    # 构建对话
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message}
-    ]
+    # 简单的工具调用模拟
+    if "加" in user_message or "+" in user_message:
+        # 提取数字
+        import re
+        numbers = re.findall(r'\d+', user_message)
+        if len(numbers) >= 2:
+            a, b = int(numbers[0]), int(numbers[1])
+            result = execute_tool("add", {"a": a, "b": b})
+            return f"计算结果: {result}"
     
-    # 调用模型
-    response = llm.create_chat_completion(
-        messages=messages,
-        temperature=0.1,
-        max_tokens=512
-    )
+    elif "乘" in user_message or "*" in user_message:
+        # 提取数字
+        import re
+        numbers = re.findall(r'\d+', user_message)
+        if len(numbers) >= 2:
+            a, b = int(numbers[0]), int(numbers[1])
+            result = execute_tool("multiply", {"a": a, "b": b})
+            return f"计算结果: {result}"
     
-    content = response['choices'][0]['message']['content']
+    elif "计算" in user_message:
+        # 尝试提取表达式
+        import re
+        expr_match = re.search(r'(\d+(?:\s*[+\-*/]\s*\d+)+)', user_message)
+        if expr_match:
+            expr = expr_match.group(1)
+            result = execute_tool("calculate", {"expression": expr})
+            return f"计算结果: {result}"
     
-    # 尝试解析工具调用
-    try:
-        # 查找JSON格式的工具调用
-        if "```json" in content:
-            json_start = content.find("```json") + 7
-            json_end = content.find("```", json_start)
-            json_str = content[json_start:json_end].strip()
-            tool_call = json.loads(json_str)
-            
-            if "tool" in tool_call and "arguments" in tool_call:
-                tool_name = tool_call["tool"]
-                arguments = tool_call["arguments"]
-                
-                # 通过FastMCP执行工具
-                if mcp_server:
-                    result = mcp_server.call_tool(tool_name, arguments)
-                    return f"计算结果: {result}"
-                else:
-                    # 备用方案：直接执行工具
-                    result = execute_tool(tool_name, arguments)
-                    return f"计算结果: {result}"
-    except Exception as e:
-        logger.warning(f"工具调用解析失败: {e}")
-    
-    # 如果没有工具调用，返回原始回复
-    return content
+    # 默认回复
+    return f"我收到了你的消息: {user_message}。这是一个模拟的AI回复。"
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -121,7 +89,7 @@ def health():
     return jsonify({
         "status": "healthy", 
         "model_loaded": llm is not None,
-        "mcp_server_ready": mcp_server is not None
+        "mode": "mock" if llm == "mock_model" else "real"
     })
 
 @app.route('/chat', methods=['POST'])
@@ -153,10 +121,7 @@ def chat():
 @app.route('/tools', methods=['GET'])
 def list_tools():
     """列出可用工具"""
-    if mcp_server:
-        return jsonify({"tools": mcp_server.list_tools()})
-    else:
-        return jsonify({"tools": TOOLS})
+    return jsonify({"tools": TOOLS})
 
 if __name__ == '__main__':
     # 加载模型

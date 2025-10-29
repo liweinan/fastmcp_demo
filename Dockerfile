@@ -1,24 +1,39 @@
 FROM python:3.11-slim
 
-# 安装系统依赖
-# build-essential: 编译 llama-cpp-python 需要
-# wget: 可选，用于下载模型文件
+# 设置代理（如果环境变量存在）
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
+ARG proxy_url
+ENV http_proxy=$http_proxy
+ENV https_proxy=$https_proxy
+ENV no_proxy=$no_proxy
+ENV HTTP_PROXY=$http_proxy
+ENV HTTPS_PROXY=$https_proxy
+ENV NO_PROXY=$no_proxy
+ENV PROXY_URL=$proxy_url
+
+# 配置 apt 代理（如果代理存在）
+RUN if [ -n "$http_proxy" ]; then \
+        echo "Acquire::http::Proxy \"$http_proxy\";" > /etc/apt/apt.conf.d/01proxy && \
+        echo "Acquire::https::Proxy \"$https_proxy\";" >> /etc/apt/apt.conf.d/01proxy; \
+    fi
+
+# 安装编译工具
 RUN apt-get update && apt-get install -y \
     build-essential \
-    wget \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置工作目录
 WORKDIR /app
 
-# 复制依赖文件
+# 复制依赖文件和安装脚本
 COPY requirements.txt .
+COPY install.sh .
 
-# 安装Python依赖
-# fastmcp: MCP框架
-# llama-cpp-python: 本地模型推理引擎
-# flask: HTTP API服务器
-RUN pip install --no-cache-dir -r requirements.txt
+# 运行安装脚本（配置代理并安装依赖）
+RUN chmod +x install.sh && ./install.sh
 
 # 创建模型目录
 # 注意：模型文件通过Volume挂载，不会复制到镜像中

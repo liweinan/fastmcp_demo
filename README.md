@@ -37,32 +37,41 @@ huggingface-cli download Qwen/Qwen2-1.5B-Instruct-GGUF qwen2-1_5b-instruct-q4_k_
 
 ### 2. 构建和启动
 
-#### 无代理环境
+#### 方法一：使用构建脚本（推荐）
 ```bash
-# 构建 Docker 镜像
+# 1. 配置代理（可选）
+cp env.example .env
+# 编辑 .env 文件，设置你的代理配置
+
+# 2. 使用构建脚本
+./build.sh
+
+# 3. 启动服务
+docker-compose up
+```
+
+#### 方法二：手动构建
+```bash
+# 无代理环境
 docker-compose build
+docker-compose up
 
-# 启动服务
+# 企业代理环境
+export PROXY_URL=http://your-proxy:port
+export HTTP_PROXY=http://your-proxy:port
+export HTTPS_PROXY=http://your-proxy:port
+export NO_PROXY=localhost,127.0.0.1
+
+docker-compose build --build-arg proxy_url=$PROXY_URL --build-arg http_proxy=$HTTP_PROXY --build-arg https_proxy=$HTTPS_PROXY --build-arg no_proxy=$NO_PROXY
 docker-compose up
 ```
 
-#### 企业代理环境
-如果你在企业网络环境中，需要配置代理：
+#### 配置说明
+- **PROXY_URL**: 代理服务器地址（如 `http://proxy.company.com:8080`）
+- **HTTP_PROXY/HTTPS_PROXY**: Docker 构建时的代理设置
+- **NO_PROXY**: 不使用代理的地址列表
 
-```bash
-# 设置代理环境变量
-export http_proxy=http://your-proxy:port
-export https_proxy=http://your-proxy:port
-export no_proxy=localhost,127.0.0.1
-
-# 构建 Docker 镜像（传递代理参数）
-docker-compose build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$https_proxy --build-arg no_proxy=$no_proxy
-
-# 启动服务
-docker-compose up
-```
-
-**注意**: 项目包含自动代理配置脚本 `install.sh`，会自动处理容器内部的代理设置。
+**注意**: 项目包含自动代理配置脚本 `install.sh`，会根据环境变量自动处理容器内部的代理设置。
 
 服务将在 `http://localhost:8000` 启动。
 
@@ -244,6 +253,8 @@ fastmcp_demo/
 ├── docker-compose.yml      # Docker Compose 配置
 ├── requirements.txt        # Python 依赖
 ├── install.sh             # 自动安装脚本（处理代理配置）
+├── build.sh               # 构建脚本（支持环境变量配置）
+├── env.example            # 环境配置示例文件
 ├── server.py              # MCP 服务器 + HTTP API
 ├── tools.py               # 工具定义
 ├── models/                # 模型文件目录（Volume 挂载）
@@ -362,20 +373,29 @@ response = llm.create_chat_completion(
 ### 代理相关问题
 如果在企业网络环境中遇到连接问题：
 
-1. **确认代理设置**：
+1. **使用配置文件**（推荐）：
    ```bash
-   echo $http_proxy
-   echo $https_proxy
+   cp env.example .env
+   # 编辑 .env 文件，设置正确的代理地址
+   ./build.sh
    ```
 
-2. **检查代理连通性**：
+2. **手动设置环境变量**：
    ```bash
-   curl -I --proxy $http_proxy https://pypi.org
+   export PROXY_URL=http://your-proxy:port
+   export HTTP_PROXY=http://your-proxy:port
+   export HTTPS_PROXY=http://your-proxy:port
+   ./build.sh
    ```
 
-3. **重新构建**：
+3. **检查代理连通性**：
    ```bash
-   docker-compose build --no-cache --build-arg http_proxy=$http_proxy --build-arg https_proxy=$https_proxy
+   curl -I --proxy $PROXY_URL https://pypi.org
+   ```
+
+4. **重新构建**：
+   ```bash
+   docker-compose build --no-cache --build-arg proxy_url=$PROXY_URL --build-arg http_proxy=$HTTP_PROXY --build-arg https_proxy=$HTTPS_PROXY
    ```
 
 ### 模型文件不存在
