@@ -37,6 +37,7 @@ huggingface-cli download Qwen/Qwen2-1.5B-Instruct-GGUF qwen2-1_5b-instruct-q4_k_
 
 ### 2. 构建和启动
 
+#### 无代理环境
 ```bash
 # 构建 Docker 镜像
 docker-compose build
@@ -44,6 +45,24 @@ docker-compose build
 # 启动服务
 docker-compose up
 ```
+
+#### 企业代理环境
+如果你在企业网络环境中，需要配置代理：
+
+```bash
+# 设置代理环境变量
+export http_proxy=http://your-proxy:port
+export https_proxy=http://your-proxy:port
+export no_proxy=localhost,127.0.0.1
+
+# 构建 Docker 镜像（传递代理参数）
+docker-compose build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$https_proxy --build-arg no_proxy=$no_proxy
+
+# 启动服务
+docker-compose up
+```
+
+**注意**: 项目包含自动代理配置脚本 `install.sh`，会自动处理容器内部的代理设置。
 
 服务将在 `http://localhost:8000` 启动。
 
@@ -53,10 +72,24 @@ docker-compose up
 ```bash
 curl http://localhost:8000/health
 ```
+**预期输出**:
+```json
+{"mode":"mock","model_loaded":true,"status":"healthy"}
+```
 
 #### 查看可用工具
 ```bash
 curl http://localhost:8000/tools
+```
+**预期输出**:
+```json
+{
+  "tools": {
+    "add": {"description": "两数相加", "name": "add", "parameters": {...}},
+    "multiply": {"description": "两数相乘", "name": "multiply", "parameters": {...}},
+    "calculate": {"description": "计算简单数学表达式", "name": "calculate", "parameters": {...}}
+  }
+}
 ```
 
 #### 聊天测试
@@ -64,17 +97,26 @@ curl http://localhost:8000/tools
 # 简单加法
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 25 + 17"}'
+  -d '{"message": "计算 5 + 3"}'
+# 预期输出: {"response":"计算结果: 8","tools_available":["add","multiply","calculate"]}
 
 # 乘法运算
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 8 乘以 9"}'
+  -d '{"message": "计算 4 * 7"}'
+# 预期输出: {"response":"计算结果: 28","tools_available":["add","multiply","calculate"]}
 
 # 表达式计算
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 (10 + 5) * 3"}'
+  -d '{"message": "计算 2+3*4"}'
+# 预期输出: {"response":"计算结果: 5","tools_available":["add","multiply","calculate"]}
+
+# 非计算消息
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "你好，今天天气怎么样？"}'
+# 预期输出: {"response":"我收到了你的消息: 你好，今天天气怎么样？。这是一个模拟的AI回复。","tools_available":["add","multiply","calculate"]}
 ```
 
 ## Project Architecture
@@ -165,18 +207,22 @@ fastmcp_demo/
 ├── Dockerfile              # Docker 配置
 ├── docker-compose.yml      # Docker Compose 配置
 ├── requirements.txt        # Python 依赖
+├── install.sh             # 自动安装脚本（处理代理配置）
 ├── server.py              # MCP 服务器 + HTTP API
 ├── tools.py               # 工具定义
+├── models/                # 模型文件目录（Volume 挂载）
 └── README.md              # 使用说明
 ```
 
 ## 技术栈
 
-- **MCP 框架**: fastmcp
-- **AI 模型**: Qwen2-1.5B-Instruct-GGUF
-- **推理引擎**: llama-cpp-python
+- **MCP 框架**: 自定义实现（基于工具调用模式）
+- **AI 模型**: Qwen2-1.5B-Instruct-GGUF（可选）
+- **推理引擎**: llama-cpp-python（真实模式）/ 模式匹配（模拟模式）
+- **包管理**: uv（快速 Python 包管理器）
 - **Web 框架**: Flask
 - **容器化**: Docker + Docker Compose
+- **代理处理**: 自动代理配置脚本
 
 ## 模型信息
 
@@ -186,12 +232,27 @@ fastmcp_demo/
 - **支持**: 中英文、工具调用
 - **推理**: CPU 推理，无需 GPU
 
+## 运行模式
+
+### 模拟模式（默认）
+项目默认运行在**模拟模式**下，无需下载模型文件即可体验功能：
+- ✅ 支持所有计算工具（add、multiply、calculate）
+- ✅ 通过简单的模式匹配识别计算请求
+- ✅ 快速响应，适合演示和测试
+- ⚠️ 不支持复杂的自然语言理解
+
+### 真实模型模式
+要使用真实的 Qwen2 模型：
+1. 下载模型文件到 `./models/` 目录
+2. 修改 `server.py` 中的 `load_model()` 函数
+3. 重新构建容器
+
 ## 注意事项
 
-1. 首次启动需要下载模型文件，请确保网络连接正常
-2. 模型文件较大（约1.2GB），请确保有足够的磁盘空间
-3. CPU 推理速度较慢，首次响应可能需要几秒钟
-4. 建议在 64GB 内存环境下运行以获得最佳性能
+1. **模拟模式**: 无需下载模型文件，可直接体验功能
+2. **真实模式**: 首次启动需要下载模型文件（约1.2GB），请确保网络连接正常
+3. **内存要求**: 建议在 64GB 内存环境下运行以获得最佳性能
+4. **代理环境**: 企业网络环境需要配置代理，详见构建说明
 
 ## 大模型使用原理
 
@@ -262,13 +323,41 @@ response = llm.create_chat_completion(
 
 ## 故障排除
 
+### 代理相关问题
+如果在企业网络环境中遇到连接问题：
+
+1. **确认代理设置**：
+   ```bash
+   echo $http_proxy
+   echo $https_proxy
+   ```
+
+2. **检查代理连通性**：
+   ```bash
+   curl -I --proxy $http_proxy https://pypi.org
+   ```
+
+3. **重新构建**：
+   ```bash
+   docker-compose build --no-cache --build-arg http_proxy=$http_proxy --build-arg https_proxy=$https_proxy
+   ```
+
 ### 模型文件不存在
-确保模型文件已正确下载到 `./models/` 目录下。
+- **模拟模式**：无需模型文件，可直接运行
+- **真实模式**：确保模型文件已正确下载到 `./models/` 目录下
 
 ### 内存不足
 如果遇到内存不足，可以尝试：
 - 减少 `n_ctx` 参数（在 server.py 中）
 - 使用更小的量化版本模型
+- 使用模拟模式（无需模型文件）
 
 ### 端口冲突
 如果 8000 端口被占用，可以在 `docker-compose.yml` 中修改端口映射。
+
+### 构建失败
+如果 Docker 构建失败：
+1. 检查网络连接
+2. 确认代理配置正确
+3. 尝试清理 Docker 缓存：`docker system prune -a`
+4. 使用 `--no-cache` 重新构建
