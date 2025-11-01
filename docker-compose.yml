@@ -1,27 +1,41 @@
-version: '3.8'
-
 services:
-  fastmcp-demo:
-    # 构建Docker镜像
-    build: .
-    
-    # 端口映射
-    # 宿主机8000端口 -> 容器8000端口
+  # FastMCP服务器 - 暴露工具接口
+  mcp-server:
+    build:
+      context: .
+      args:
+        BUILD_PROXY: ${BUILD_PROXY:-}
+    image: fastmcp-demo:latest  # 使用共享镜像标签
     ports:
-      - "8000:8000"
-    
-    # 卷挂载配置
-    # 重要：模型文件通过Volume挂载，不会复制到容器中
-    # ./models: 宿主机模型目录（用户需要手动下载模型文件到这里）
-    # /app/models: 容器内模型目录（应用读取模型的位置）
+      - "8100:8100"
     volumes:
       - ./models:/app/models
-    
-    # 环境变量
-    # PYTHONUNBUFFERED=1: 确保Python输出实时显示，便于调试
     environment:
       - PYTHONUNBUFFERED=1
-    
-    # 重启策略
-    # unless-stopped: 除非手动停止，否则总是重启
+    command: /app/.venv/bin/python mcp_server.py
     restart: unless-stopped
+    networks:
+      - fastmcp-network
+
+  # FastAPI Chat服务器 - 提供聊天服务
+  chat-server:
+    image: fastmcp-demo:latest  # 复用同一个镜像，避免重复构建
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MCP_SERVER_URL=http://mcp-server:8100
+      # 模型路径：从.env文件读取，或使用默认值（仅支持Llama 3.1 8B）
+      - LLAMA_MODEL_PATH=${LLAMA_MODEL_PATH:-./models/llama-3.1-8b-instruct-q4_k_m.gguf}
+    command: /app/.venv/bin/python chat_server.py
+    depends_on:
+      - mcp-server
+    restart: unless-stopped
+    networks:
+      - fastmcp-network
+
+networks:
+  fastmcp-network:
+    driver: bridge

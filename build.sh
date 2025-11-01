@@ -14,39 +14,48 @@ if [ -f ".env" ]; then
 elif [ -f "env.example" ]; then
     echo "未找到 .env 文件，请参考 env.example 创建配置文件"
     echo "或者直接设置环境变量："
-    echo "  export PROXY_URL=http://your-proxy:port"
     echo "  export HTTP_PROXY=http://your-proxy:port"
     echo "  export HTTPS_PROXY=http://your-proxy:port"
+    echo "  export PROXY_URL=http://your-proxy:port"
 fi
 
-# 构建参数
-BUILD_ARGS=""
+# 统一代理配置（兼容大小写环境变量）
+if [ -z "$HTTP_PROXY" ] && [ -n "$http_proxy" ]; then
+    export HTTP_PROXY="$http_proxy"
+fi
+if [ -z "$HTTPS_PROXY" ] && [ -n "$https_proxy" ]; then
+    export HTTPS_PROXY="$https_proxy"
+fi
+# 如果设置了HTTP_PROXY但没有设置PROXY_URL，使用HTTP_PROXY作为PROXY_URL
+if [ -z "$PROXY_URL" ] && [ -n "$HTTP_PROXY" ]; then
+    export PROXY_URL="$HTTP_PROXY"
+fi
 
-# 添加代理参数（如果设置了）
+# 准备构建代理（容器内使用，不传递给Docker daemon）
+BUILD_PROXY=""
 if [ -n "$PROXY_URL" ]; then
-    echo "使用代理: $PROXY_URL"
-    BUILD_ARGS="$BUILD_ARGS --build-arg proxy_url=$PROXY_URL"
-fi
-
-if [ -n "$HTTP_PROXY" ]; then
-    BUILD_ARGS="$BUILD_ARGS --build-arg http_proxy=$HTTP_PROXY"
-fi
-
-if [ -n "$HTTPS_PROXY" ]; then
-    BUILD_ARGS="$BUILD_ARGS --build-arg https_proxy=$HTTPS_PROXY"
-fi
-
-if [ -n "$NO_PROXY" ]; then
-    BUILD_ARGS="$BUILD_ARGS --build-arg no_proxy=$NO_PROXY"
+    BUILD_PROXY="$PROXY_URL"
+elif [ -n "$HTTP_PROXY" ]; then
+    BUILD_PROXY="$HTTP_PROXY"
+elif [ -n "$http_proxy" ]; then
+    BUILD_PROXY="$http_proxy"
 fi
 
 # 构建 Docker 镜像
 echo "构建 Docker 镜像..."
-if [ -n "$BUILD_ARGS" ]; then
-    echo "构建参数: $BUILD_ARGS"
-    docker-compose build $BUILD_ARGS
+if [ -n "$BUILD_PROXY" ]; then
+    echo "容器内将使用代理: $BUILD_PROXY"
+    echo "注意: Docker daemon拉取基础镜像时不使用此代理"
+    echo "      如果拉取失败，请在Docker Desktop中配置代理"
+    echo ""
+    # 清除可能影响Docker daemon的代理环境变量
+    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy PROXY_URL
+    export BUILD_PROXY
+    docker-compose build
 else
     echo "无代理配置，直接构建..."
+    # 清除可能影响Docker daemon的代理环境变量
+    unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy PROXY_URL BUILD_PROXY
     docker-compose build
 fi
 

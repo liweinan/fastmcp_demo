@@ -39,8 +39,8 @@ fi
 echo "安装 uv..."
 pip install --no-cache-dir uv
 
-# 5. 使用 uv 安装项目依赖
+# 5. 使用 uv sync 安装项目依赖（使用 pyproject.toml）
 echo "安装项目依赖..."
-uv pip install --system --no-cache -r requirements.txt
+uv sync
 
 echo "=== 安装完成 ==="
