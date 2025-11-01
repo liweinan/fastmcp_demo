@@ -4,11 +4,13 @@
 
 ## 功能特性
 
-- 🤖 本地部署的 Qwen2-1.5B 语言模型
-- 🛠️ 简单的数学计算工具（加法、乘法、表达式计算）
+- 🤖 **真实的LLM推理**：本地部署的 Qwen2-1.5B 语言模型，实际调用进行推理
+- 💬 **友好对话**：支持自然语言对话，可以友好地回复问候和闲聊
+- 🛠️ **智能工具调用**：自动识别计算需求并调用相应工具（加法、乘法、表达式计算）
 - 🐳 Docker 容器化部署
 - 🌐 HTTP API 接口，支持 curl 交互
 - ⚡ 基于 llama.cpp 的 CPU 推理
+- 🛡️ 完善的错误处理和友好的错误提示
 
 ## 快速开始
 
@@ -83,8 +85,10 @@ curl http://localhost:8000/health
 ```
 **预期输出**:
 ```json
-{"mode":"mock","model_loaded":true,"status":"healthy"}
+{"mode":"real","model_loaded":true,"status":"healthy"}
 ```
+
+**注意**：如果 `model_loaded` 为 `false` 或 `mode` 为 `not_loaded`，说明模型文件未找到，需要先下载模型文件。
 
 #### 查看可用工具
 ```bash
@@ -103,10 +107,22 @@ curl http://localhost:8000/tools
 
 #### 聊天测试
 
-**注意**: 如果中文显示为 Unicode 转义字符（如 `\u6211`），可以使用 `jq` 或 `python3 -m json.tool` 来正确显示：
+**注意**: 
+1. 如果中文显示为 Unicode 转义字符（如 `\u6211`），可以使用 `jq` 或 `python3 -m json.tool` 来正确显示
+2. 请确保使用**英文引号**，而不是中文引号（""）
 
 ```bash
-# 简单加法
+# 问候对话（自然语言回复）
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "你好"}' | jq .
+# 预期输出:
+# {
+#   "response": "你好！有什么我可以帮助你的吗？",
+#   "tools_available": ["add", "multiply", "calculate"]
+# }
+
+# 简单加法（工具调用）
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 5 + 3"}' | jq .
@@ -116,7 +132,7 @@ curl -X POST http://localhost:8000/chat \
 #   "tools_available": ["add", "multiply", "calculate"]
 # }
 
-# 乘法运算
+# 乘法运算（工具调用）
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 4 * 7"}' | jq .
@@ -126,36 +142,41 @@ curl -X POST http://localhost:8000/chat \
 #   "tools_available": ["add", "multiply", "calculate"]
 # }
 
-# 表达式计算
+# 表达式计算（工具调用）
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 2+3*4"}' | jq .
 # 预期输出:
 # {
-#   "response": "计算结果: 5",
+#   "response": "计算结果: 14",
 #   "tools_available": ["add", "multiply", "calculate"]
 # }
 
-# 非计算消息
+# 复杂表达式（工具调用）
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好，今天天气怎么样？"}' | jq .
+  -d '{"message": "计算 3 * 7"}' | jq .
 # 预期输出:
 # {
-#   "response": "我收到了你的消息: 你好，今天天气怎么样？。这是一个模拟的AI回复。",
+#   "response": "计算结果: 21",
 #   "tools_available": ["add", "multiply", "calculate"]
 # }
 
-# 英文消息
+# 非计算消息（自然语言回复）
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "tell me todays date"}' | jq .
+  -d '{"message": "今天天气如何"}' | jq .
 # 预期输出:
 # {
-#   "response": "我收到了你的消息: tell me todays date。这是一个模拟的AI回复。",
+#   "response": "今天的天气取决于你所在的地方，你可以告诉我你在哪里吗？",
 #   "tools_available": ["add", "multiply", "calculate"]
 # }
 ```
+
+**功能说明**：
+- 🧮 **计算请求**：当用户询问数学计算问题时，LLM会自动调用相应的工具进行计算
+- 💬 **友好对话**：当用户问候或闲聊时，LLM会以自然语言友好回复
+- 🔍 **智能识别**：LLM会自动识别用户意图，决定是使用工具还是直接回复
 
 **替代方案**（如果系统没有安装 `jq`）：
 ```bash
@@ -264,8 +285,9 @@ fastmcp_demo/
 ## 技术栈
 
 - **MCP 框架**: 自定义实现（基于工具调用模式）
-- **AI 模型**: Qwen2-1.5B-Instruct-GGUF（可选）
-- **推理引擎**: llama-cpp-python（真实模式）/ 模式匹配（模拟模式）
+- **AI 模型**: Qwen2-1.5B-Instruct-GGUF（必需）
+- **推理引擎**: llama-cpp-python（基于 llama.cpp）
+- **LLM 库**: llama-cpp-python >= 0.2.0
 - **包管理**: uv（快速 Python 包管理器）
 - **Web 框架**: Flask
 - **容器化**: Docker + Docker Compose
@@ -281,25 +303,25 @@ fastmcp_demo/
 
 ## 运行模式
 
-### 模拟模式（默认）
-项目默认运行在**模拟模式**下，无需下载模型文件即可体验功能：
-- ✅ 支持所有计算工具（add、multiply、calculate）
-- ✅ 通过简单的模式匹配识别计算请求
-- ✅ 快速响应，适合演示和测试
-- ⚠️ 不支持复杂的自然语言理解
+项目**默认使用真实LLM模式**，需要下载模型文件才能运行。模型文件会在启动时自动加载，并进行真实的推理计算。
 
-### 真实模型模式
-要使用真实的 Qwen2 模型：
-1. 下载模型文件到 `./models/` 目录
-2. 修改 `server.py` 中的 `load_model()` 函数
-3. 重新构建容器
+### 真实LLM模式（默认）
+项目使用真实的 Qwen2 模型进行推理：
+- ✅ **真实LLM推理**：使用 llama-cpp-python 实际调用模型
+- ✅ **智能工具调用**：LLM自动识别计算需求并调用工具
+- ✅ **友好对话**：支持自然语言对话，可以友好回复问候和闲聊
+- ✅ **错误处理**：完善的参数验证和错误提示
+- ⚠️ **需要模型文件**：必须下载模型文件到 `./models/` 目录才能运行
+
+如果模型文件不存在，服务将无法启动并显示错误信息。
 
 ## 注意事项
 
-1. **模拟模式**: 无需下载模型文件，可直接体验功能
-2. **真实模式**: 首次启动需要下载模型文件（约1.2GB），请确保网络连接正常
-3. **内存要求**: 建议在 64GB 内存环境下运行以获得最佳性能
+1. **模型文件必需**: 必须下载模型文件（约1.2GB）到 `./models/` 目录，否则服务无法启动
+2. **内存要求**: 建议至少 4GB 可用内存，8GB 以上更佳
+3. **网络连接**: 首次下载模型需要良好的网络连接
 4. **代理环境**: 企业网络环境需要配置代理，详见构建说明
+5. **请求格式**: 使用 curl 时请确保JSON使用英文引号，例如 `'{"message": "你好"}'`
 
 ## 大模型使用原理
 
@@ -314,10 +336,12 @@ llm = Llama(
 ```
 
 ### 2. 系统提示构建
-大模型被"教导"如何使用工具：
-- 告诉模型它是一个数学计算助手
-- 列出所有可用工具（add、multiply、calculate）
+大模型被"教导"如何使用工具和进行友好对话：
+- 告诉模型它是一个友善的数学计算助手
+- 明确区分计算问题和一般对话的处理方式
+- 列出所有可用工具（add、multiply、calculate）及其详细参数
 - 指定工具调用的JSON格式
+- 提供具体的工具调用示例
 
 ### 3. 对话处理流程
 当用户发送消息时：
@@ -334,18 +358,28 @@ messages = [
 ```python
 response = llm.create_chat_completion(
     messages=messages,
-    temperature=0.1,    # 低温度，更确定性的输出
+    temperature=0.7,    # 较高温度，让回复更自然友好
     max_tokens=512      # 限制输出长度
 )
 ```
 
-### 4. 工具调用解析与执行
-大模型返回的内容会被解析：
+### 4. 响应处理与工具调用
+大模型返回的内容会被智能处理：
 
-1. **检测工具调用**：查找 ````json` 格式的工具调用
-2. **解析JSON**：提取工具名和参数
-3. **执行工具**：调用对应的计算函数
-4. **返回结果**：将计算结果返回给用户
+1. **响应解析**：尝试从LLM响应中提取工具调用JSON
+   - 支持多种JSON格式（代码块、纯JSON、嵌入JSON）
+   - 使用多种策略提取和解析JSON对象
+   
+2. **工具调用检测**：判断响应是否包含工具调用
+   - 如果包含有效的工具调用，提取工具名和参数
+   - 验证参数完整性和类型正确性
+   - 执行对应的计算函数
+   - 返回计算结果
+   
+3. **自然语言回复**：如果没有工具调用
+   - 直接返回LLM的自然语言响应
+   - 清理可能的格式标记
+   - 提供友好的对话体验
 
 ### 5. 完整工作流程示例
 
@@ -361,12 +395,14 @@ response = llm.create_chat_completion(
 
 ### 6. 关键特点
 
-- **本地推理**：模型完全在本地运行，无需网络
-- **CPU优化**：使用 llama.cpp 进行高效的CPU推理
-- **工具集成**：大模型可以智能选择和使用预定义工具
-- **对话式**：支持多轮对话，保持上下文
+- **本地推理**：模型完全在本地运行，无需网络（除了初始下载）
+- **CPU优化**：使用 llama.cpp 进行高效的CPU推理，无需GPU
+- **智能工具调用**：大模型可以智能识别计算需求并自动调用工具
+- **友好对话**：支持自然语言对话，可以友好地回复问候和闲聊
+- **错误处理**：完善的参数验证、JSON解析和错误提示机制
+- **双模式响应**：根据用户意图智能选择工具调用或自然语言回复
 
-这种设计让大模型不仅能够理解和生成文本，还能主动调用工具来执行具体的计算任务，实现了"思考+行动"的智能助手模式。
+这种设计让大模型不仅能够理解和生成文本，还能主动调用工具来执行具体的计算任务，同时保持友好的对话体验，实现了"思考+行动+对话"的智能助手模式。
 
 ## 故障排除
 
@@ -399,14 +435,30 @@ response = llm.create_chat_completion(
    ```
 
 ### 模型文件不存在
-- **模拟模式**：无需模型文件，可直接运行
-- **真实模式**：确保模型文件已正确下载到 `./models/` 目录下
+如果服务启动失败，提示模型文件不存在：
+1. 确保已下载模型文件到 `./models/qwen2-1_5b-instruct-q4_k_m.gguf`
+2. 检查文件路径是否正确（相对路径为 `./models/`）
+3. 验证文件权限，确保可读
+4. 查看服务器日志了解详细错误信息
 
 ### 内存不足
 如果遇到内存不足，可以尝试：
-- 减少 `n_ctx` 参数（在 server.py 中）
-- 使用更小的量化版本模型
-- 使用模拟模式（无需模型文件）
+- 减少 `n_ctx` 参数（在 server.py 中，默认2048）
+- 减少 `n_threads` 参数（在 server.py 中，默认4）
+- 使用更小的量化版本模型（如 Q2_K 或 Q3_K_M）
+- 关闭其他占用内存的程序
+
+### JSON格式错误
+如果遇到 `400 Bad Request` 或 JSON 格式错误：
+- 确保使用**英文引号**，不要使用中文引号
+- 检查JSON格式是否正确，例如：`'{"message": "你好"}'`
+- 查看错误响应中的详细提示和示例
+- 可以使用文件方式发送请求避免转义问题：
+  ```bash
+  echo '{"message": "你好"}' | curl -X POST http://localhost:8000/chat \
+    -H "Content-Type: application/json" \
+    -d @- | jq .
+  ```
 
 ### 端口冲突
 如果 8000 端口被占用，可以在 `docker-compose.yml` 中修改端口映射。
