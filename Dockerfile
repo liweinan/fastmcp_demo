@@ -4,11 +4,17 @@ FROM debian:bookworm-slim AS builder
 
 # 配置 apt 代理（如果宿主机有代理）
 ARG BUILD_PROXY
-RUN if [ -n "$BUILD_PROXY" ]; then \
+RUN echo "=== 调试：BUILD_PROXY 值（builder 阶段）===" && \
+    echo "BUILD_PROXY='$BUILD_PROXY'" && \
+    if [ -n "$BUILD_PROXY" ]; then \
         APT_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
         echo "配置 apt 代理: $APT_PROXY" && \
         echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf.d/01proxy && \
-        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy; \
+        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy && \
+        echo "代理配置文件内容:" && \
+        cat /etc/apt/apt.conf.d/01proxy; \
+    else \
+        echo "警告: BUILD_PROXY 未设置，将直接连接（可能需要配置代理）"; \
     fi
 
 # 配置 apt 重试和超时（独立层，可缓存）
@@ -99,11 +105,17 @@ FROM debian:bookworm-slim
 
 # 配置 apt 代理（如果宿主机有代理）
 ARG BUILD_PROXY
-RUN if [ -n "$BUILD_PROXY" ]; then \
+RUN echo "=== 调试：BUILD_PROXY 值（最终阶段）===" && \
+    echo "BUILD_PROXY='$BUILD_PROXY'" && \
+    if [ -n "$BUILD_PROXY" ]; then \
         APT_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
         echo "配置 apt 代理: $APT_PROXY" && \
         echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf.d/01proxy && \
-        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy; \
+        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy && \
+        echo "代理配置文件内容:" && \
+        cat /etc/apt/apt.conf.d/01proxy; \
+    else \
+        echo "警告: BUILD_PROXY 未设置，将直接连接（可能需要配置代理）"; \
     fi
 
 # 配置 apt 重试和超时（与 builder 阶段一致）
