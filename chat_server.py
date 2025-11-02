@@ -167,44 +167,26 @@ def extract_final_answer(raw_response: str) -> str:
     if not raw_response:
         return ""
     
-    original_text = raw_response
-    
-    # 方法1：查找最后一个 "Answer:" 后的内容
+    # 优先从 "Answer:" 后提取
     if 'Answer:' in raw_response:
-        parts = raw_response.rsplit('Answer:', 1)
-        if len(parts) > 1:
-            answer_section = parts[-1].strip()
-            # 提取第一个简洁的答案（通常是数字或简短文本）
-            lines = [line.strip() for line in answer_section.split('\n') if line.strip()]
-            for line in lines[:3]:  # 只检查前3行
-                # 如果这行是纯数字或很简短，可能就是答案
-                cleaned = line.replace('$', '').replace('\\boxed{', '').replace('}', '').strip()
-                if len(cleaned) < 30:
-                    # 检查是否主要是数字
-                    if re.match(r'^-?\d+\.?\d*$', cleaned) or len(cleaned.split()) < 5:
-                        return cleaned
-            
-            # 如果没找到，尝试从 answer_section 中提取第一个数字
-            numbers = re.findall(r'-?\d+\.?\d*', answer_section)
-            if numbers:
-                return numbers[0]
+        answer_section = raw_response.rsplit('Answer:', 1)[-1].strip()
+        # 提取第一个简洁行（通常是数字或简短文本）
+        for line in answer_section.split('\n')[:3]:
+            cleaned = line.strip().replace('$', '').replace('\\boxed{', '').replace('}', '')
+            if cleaned and len(cleaned) < 30:
+                # 如果是数字或简短文本，直接返回
+                if re.match(r'^-?\d+\.?\d*$', cleaned) or len(cleaned.split()) < 5:
+                    return cleaned
+        # 如果没有找到，提取第一个数字
+        numbers = re.findall(r'-?\d+\.?\d*', answer_section)
+        if numbers:
+            return numbers[0]
     
-    # 方法2：如果响应仍然很长或包含多余内容，提取数值答案
+    # 如果响应很长或包含多余内容，提取最后一个数字（通常是最终答案）
     if len(raw_response) > 50 or 'Step' in raw_response or 'Thought' in raw_response:
-        # 从整个响应中提取数字，优先使用最后出现的数字（通常是最终答案）
-        all_numbers = re.findall(r'-?\d+\.?\d*', original_text)
-        if all_numbers:
-            # 使用最后一个数字（通常是最終答案）
-            return all_numbers[-1]
-        else:
-            # 如果没有数字，尝试提取 "Answer:" 后的第一行
-            if 'Answer:' in original_text:
-                answer_part = original_text.split('Answer:')[-1].strip()
-                first_line = answer_part.split('\n')[0].strip()
-                # 清理 Markdown 和其他格式
-                first_line = re.sub(r'[\\$`{}]', '', first_line).strip()
-                if len(first_line) < 100:
-                    return first_line
+        numbers = re.findall(r'-?\d+\.?\d*', raw_response)
+        if numbers:
+            return numbers[-1]
     
     # 如果无法提取，返回原始响应的前200个字符
     return raw_response[:200].strip() if len(raw_response) > 200 else raw_response.strip()
@@ -217,62 +199,35 @@ def find_model_file() -> str:
     if model_path and os.path.exists(model_path):
         return model_path
     
-    # 如果未指定或路径不存在，尝试在 models 目录下查找
+    # 如果未指定或路径不存在，使用默认文件名
     models_dir = "./models"
-    if model_path and not os.path.exists(model_path):
-        # 指定的路径不存在，但先尝试查找
-        pass
-    
-    # 可能的文件名模式（大小写不敏感）
-    possible_names = [
-        "llama-3.1-8b-instruct-q4_k_m.gguf",
-        "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-        "llama-3.1-8b-instruct-q4_k_m.gguf.1",  # wget 下载可能带后缀
-    ]
-    
-    # 在 models 目录下查找
-    found_path = None
-    if os.path.isdir(models_dir):
-        import glob
-        # 查找所有包含 "llama" 和 "q4_k_m" 的 .gguf 文件（不区分大小写）
-        pattern = os.path.join(models_dir, "*llama*3.1*8b*q4_k_m*.gguf*")
-        matches = glob.glob(pattern, recursive=False)
-        if matches:
-            # 选择第一个匹配的文件
-            found_path = matches[0]
-        else:
-            # 如果没有找到，尝试精确匹配
-            for name in possible_names:
-                path = os.path.join(models_dir, name)
-                if os.path.exists(path):
-                    found_path = path
-                    break
+    default_filename = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+    default_path = os.path.join(models_dir, default_filename)
     
     # 如果找到了文件，验证并返回
-    if found_path:
+    if os.path.exists(default_path):
         # 验证文件大小
         try:
-            file_size = os.path.getsize(found_path)
+            file_size = os.path.getsize(default_path)
             if file_size < 100 * 1024 * 1024:  # 至少100MB
                 raise FileNotFoundError(
-                    f"模型文件大小异常: {found_path} (大小: {file_size} 字节)\n"
+                    f"模型文件大小异常: {default_path} (大小: {file_size} 字节)\n"
                     f"请检查文件是否下载完整。模型文件应该至少100MB。\n"
                     f"请重新下载模型文件，参考README.md中的模型下载说明。"
                 )
-            return found_path
+            return default_path
         except OSError as e:
             raise FileNotFoundError(
-                f"无法访问模型文件: {found_path}\n"
+                f"无法访问模型文件: {default_path}\n"
                 f"错误: {e}"
             )
     
-    # 如果都没找到，使用默认路径并报错
-    default_path = "./models/llama-3.1-8b-instruct-q4_k_m.gguf"
+    # 如果没找到，报错
     raise FileNotFoundError(
         f"模型文件不存在: {model_path or default_path}\n"
         f"请先下载Llama 3.1 8B模型文件。\n"
         f"参考README.md中的模型下载说明。\n"
-        f"提示：已检查 models 目录，未找到匹配的模型文件。"
+        f"默认文件名: {default_filename}"
     )
 
 async def get_tool_names() -> List[str]:
@@ -327,24 +282,19 @@ async def chat(request: ChatRequest):
                 tools_available=tool_names
             )
         
-        # 预处理：检测问候语和非数学问题，直接回复（避免小模型过度工具调用）
-        # 根据 instructions.md，小于 8B 的模型在提示中包含工具模式会导致不稳定
+        # 使用白名单：包含"加减乘除计算"的才调用大模型
         user_message_lower = message.lower()
-        greeting_keywords = ['你好', 'hello', 'hi', 'hey', 'hi there', 'greetings', '早上好', '下午好', '晚上好']
-        is_greeting = any(keyword in user_message_lower for keyword in greeting_keywords)
-        
-        # 检测是否包含数学计算关键词
         math_keywords = ['计算', '算', '加', '减', '乘', '除', '等于', '等于多少', '+', '-', '*', '/', 'calculate', 'compute', 'add', 'multiply', 'divide']
         has_math_content = any(keyword in user_message_lower for keyword in math_keywords) or \
                           any(char.isdigit() for char in user_message_lower)
         
-        # 如果是纯问候且不包含数学内容，直接友好回复，不调用 Agent
-        if is_greeting and not has_math_content:
-            logger.info("检测到问候语，直接回复，不调用 Agent")
+        # 如果不包含数学内容，直接友好回复，不调用 Agent
+        if not has_math_content:
+            logger.info("未检测到数学计算内容，直接回复，不调用 Agent")
             tool_names = await get_tool_names()
             return ChatResponse(
                 response="你好！我是数学计算助手，可以帮助你进行数学计算。你可以问我：\n- 计算 5 + 3\n- 2 * 4 等于多少\n- 计算 10 + 20 * 2\n等等。",
-                raw_response="问候语 - 直接回复，未调用 Agent",
+                raw_response="非数学问题 - 直接回复，未调用 Agent",
                 tools_available=tool_names
             )
         
