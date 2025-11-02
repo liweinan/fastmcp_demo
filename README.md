@@ -630,6 +630,77 @@ max_iterations=3  # 可调整：1-5，简单计算通常只需要1次迭代
 - 如果频繁超时，优先考虑减少 `max_new_tokens` 而不是增加 `timeout`
 - CPU 推理速度较慢，这是正常现象，考虑使用 GPU 加速可以显著提升性能
 
+### System Prompt 配置说明
+如果遇到 Agent 行为不符合预期（如频繁调用工具、循环调用等），可以调整或移除 system_prompt：
+
+#### System Prompt 的作用
+
+**位置**：`chat_server.py` 第 138-166 行
+
+当前 system_prompt 的主要作用：
+1. **限制工具调用次数**：明确指示"每次请求最多只调用一次工具"，避免循环调用
+2. **明确使用场景**：只在数学计算时使用工具，问候和闲聊不使用工具
+3. **指导 Agent 行为**：提供清晰的工作流程和示例
+
+#### 是否可以去掉 System Prompt？
+
+**是的，技术上可以去掉。**
+
+ReActAgent 可以在没有 `system_prompt` 的情况下正常工作：
+
+```python
+agent = ReActAgent(
+    tools=tools if tools else None,
+    llm=llm,
+    verbose=True,
+    # system_prompt=system_prompt  # 可以注释掉或删除
+)
+```
+
+或者设置为 `None`：
+
+```python
+agent = ReActAgent(
+    tools=tools if tools else None,
+    llm=llm,
+    verbose=True,
+    system_prompt=None  # 明确设置为 None
+)
+```
+
+#### 去掉 System Prompt 的影响
+
+**仍然可以工作**：
+- ✅ ReActAgent 会使用默认的 system prompt
+- ✅ 工具调用功能正常
+- ✅ 基本推理能力不受影响
+
+**但会有行为差异**：
+- ⚠️ 没有明确的工具调用限制，Agent 可能会多次调用工具（可能出现之前遇到的循环调用问题）
+- ⚠️ 没有"只调用一次工具"的明确指导
+- ⚠️ 没有针对数学计算的专门指导，可能对任何问题都尝试调用工具
+- ⚠️ 对于问候和闲聊也可能尝试调用工具
+
+#### 何时需要保留 System Prompt？
+
+**建议保留**，如果遇到以下问题：
+- Agent 循环调用工具
+- Agent 在不该使用工具的场景下调用工具（如问候语）
+- Agent 对同一个问题多次调用工具
+- 希望严格控制 Agent 的行为
+
+#### 何时可以去掉 System Prompt？
+
+可以考虑去掉，如果：
+- 希望 Agent 有更灵活的行为
+- 允许多次工具调用（复杂任务需要多步骤）
+- 使用默认的 Agent 行为已经满足需求
+
+**结论**：
+- ✅ **技术上可行**：去掉 `system_prompt` 也可以运行
+- ⚠️ **功能可能受影响**：可能恢复循环调用工具等问题
+- 💡 **建议保留**：当前的 `system_prompt` 解决了之前的工具调用问题
+
 ### JSON格式错误
 如果遇到 `400 Bad Request` 或 JSON 格式错误：
 - 确保使用**英文引号**，不要使用中文引号
