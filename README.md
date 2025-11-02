@@ -40,16 +40,12 @@ mkdir -p models
 wget -O models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
   "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
-# 注意：代码会自动识别多种文件名格式，无需手动重命名
-# 支持的文件名：
-# - Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf（bartowski的原始文件名）
-# - llama-3.1-8b-instruct-q4_k_m.gguf（标准小写格式）
-# - Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf.1（wget下载可能带后缀）
+# 注意：文件名必须为 Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf，否则服务无法启动
 
 # 方法2：使用huggingface-cli（bartowski版本，无需登录）
 pip install huggingface_hub
 huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF \
-  --include "*Q4_K_M*.gguf" --local-dir ./models
+  --include "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf" --local-dir ./models
 ```
 
 **备选公开源**（都无需认证，按下载量排序）：
@@ -59,27 +55,16 @@ huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF \
 
 **说明**：
 - 文件大小约4.6GB，确保有足够的磁盘空间
-- 代码会自动识别多种文件名格式，无需手动重命名
+- 模型文件名固定为：`Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
+- 文件必须放在 `./models/` 目录下
 
-### 2. 配置模型路径（可选）
-
-如果需要指定自定义模型路径，可以配置环境变量：
-
-```bash
-# 创建.env文件（如果不存在）
-cp env.example .env
-
-# 设置模型路径（可选，默认: ./models/llama-3.1-8b-instruct-q4_k_m.gguf）
-echo "LLAMA_MODEL_PATH=./models/your-model.gguf" >> .env
-```
-
-### 3. 构建和启动
+### 2. 构建和启动
 
 #### 方法一：使用构建脚本（推荐）
 ```bash
 # 1. 配置代理（可选）
 cp env.example .env
-# 编辑 .env 文件，设置你的代理配置和模型选择
+# 编辑 .env 文件，设置你的代理配置
 
 # 2. 使用构建脚本
 ./build.sh
@@ -559,7 +544,7 @@ result = await handler
 
 ### 模型文件不存在
 如果服务启动失败，提示模型文件不存在：
-1. 确保已下载模型文件到 `./models/qwen2-1_5b-instruct-q4_k_m.gguf`
+1. 确保已下载模型文件到 `./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
 2. 检查文件路径是否正确（相对路径为 `./models/`）
 3. 验证文件权限，确保可读
 4. 查看服务器日志了解详细错误信息
@@ -570,6 +555,80 @@ result = await handler
 - 减少 `n_threads` 参数（在 server.py 中，默认4）
 - 使用更小的量化版本模型（如 Q2_K 或 Q3_K_M）
 - 关闭其他占用内存的程序
+
+### 超时和性能调优
+如果遇到超时错误（"Agent 处理超时"），可以根据硬件配置调整以下参数：
+
+#### 1. 调整 Token 生成参数（chat_server.py）
+
+**位置**：`chat_server.py` 第 79-90 行
+
+```python
+llm = LlamaCPP(
+    model_path=model_path,
+    temperature=0.1,
+    max_new_tokens=256,  # 可调整：128-512，数值越大生成内容越多，但耗时更长
+    context_window=4096,
+    verbose=False,
+    model_kwargs={
+        "n_threads": 6,      # 可调整：根据CPU核心数设置，建议为物理核心数
+        "n_predict": 256,    # 应与 max_new_tokens 保持一致
+    },
+)
+```
+
+**调整建议**：
+- **快速响应**（较低CPU）：`max_new_tokens=128`, `n_predict=128`
+- **平衡**（中等CPU）：`max_new_tokens=256`, `n_predict=256`（默认）
+- **完整回复**（高性能CPU）：`max_new_tokens=512`, `n_predict=512`
+
+#### 2. 调整超时时间（chat_server.py）
+
+**位置**：`chat_server.py` 第 299 行
+
+```python
+result = await asyncio.wait_for(handler, timeout=120.0)  # 可调整：60-300秒
+```
+
+**调整建议**：
+- **快速硬件**（8核+CPU，高频率）：60-90秒
+- **中等硬件**（4-6核CPU）：120秒（默认）
+- **较慢硬件**（2-4核CPU，低频率）：180-300秒
+
+**计算公式**（粗略估算）：
+```
+超时时间 ≈ (max_new_tokens / 10) + 工具调用时间（5-10秒）
+```
+
+例如：`max_new_tokens=256` → 超时时间 ≈ 25-35秒 + 5-10秒 ≈ 30-45秒（实际建议设置为 2-3 倍，即 60-120 秒）
+
+#### 3. 调整 Agent 迭代次数（chat_server.py）
+
+**位置**：`chat_server.py` 第 294 行
+
+```python
+max_iterations=3  # 可调整：1-5，简单计算通常只需要1次迭代
+```
+
+**调整建议**：
+- **简单计算**：`max_iterations=1-2`（更快响应）
+- **复杂问题**：`max_iterations=3-5`（允许多次工具调用）
+
+#### 4. 性能优化建议
+
+**根据硬件配置选择参数组合**：
+
+| CPU 核心数 | 推荐 max_new_tokens | 推荐 timeout | 推荐 n_threads |
+|-----------|-------------------|--------------|---------------|
+| 2-4 核    | 128               | 180-240 秒   | 2-4           |
+| 4-6 核    | 256               | 120-180 秒   | 4-6           |
+| 6-8 核    | 256-512           | 90-120 秒    | 6-8           |
+| 8+ 核     | 512               | 60-90 秒     | 8+            |
+
+**注意**：
+- 参数调整后需要重启服务才能生效
+- 如果频繁超时，优先考虑减少 `max_new_tokens` 而不是增加 `timeout`
+- CPU 推理速度较慢，这是正常现象，考虑使用 GPU 加速可以显著提升性能
 
 ### JSON格式错误
 如果遇到 `400 Bad Request` 或 JSON 格式错误：

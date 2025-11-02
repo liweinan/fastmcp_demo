@@ -27,8 +27,11 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - MCP_SERVER_URL=http://mcp-server:8100
-      # 模型路径：从.env文件读取，或使用默认值（仅支持Llama 3.1 8B）
-      - LLAMA_MODEL_PATH=${LLAMA_MODEL_PATH:-./models/llama-3.1-8b-instruct-q4_k_m.gguf}
+      # 清除可能残留的代理环境变量（避免影响容器间通信）
+      - http_proxy=
+      - https_proxy=
+      - HTTP_PROXY=
+      - HTTPS_PROXY=
     command: /app/.venv/bin/python chat_server.py
     depends_on:
       - mcp-server

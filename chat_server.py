@@ -79,12 +79,13 @@ async def init_agent():
     llm = LlamaCPP(
         model_path=model_path,
         temperature=0.1,
-        max_new_tokens=256,
+        max_new_tokens=256,  # 增加生成长度，确保完整回复
         context_window=4096,
         verbose=False,
         # 底层llama-cpp-python的参数通过model_kwargs传递
         model_kwargs={
             "n_threads": 6,
+            "n_predict": 256,  # 增加预测token数，确保完整回复
         },
     )
     logger.info("模型加载完成")
@@ -101,21 +102,32 @@ async def init_agent():
         try:
             # 使用 BasicMCPClient 创建客户端（支持 SSE URL）
             # BasicMCPClient 会自动检测 SSE 端点（URL 以 /sse 结尾）
+            logger.debug(f"尝试创建 MCP 客户端连接到: {mcp_sse_url}")
             client = BasicMCPClient(command_or_url=mcp_sse_url, timeout=10)
             # 创建 McpToolSpec
             tool_spec = McpToolSpec(client=client)
             # 在异步环境中使用异步方法获取工具列表
+            logger.debug("正在获取工具列表...")
             tools = await tool_spec.to_tool_list_async()
             logger.info(f"MCP服务器连接成功，发现 {len(tools)} 个工具: {[t.metadata.name for t in tools]}")
             break  # 成功连接，退出重试循环
             
         except Exception as e:
+            # 处理异常（包括 ExceptionGroup）
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            # 如果是 ExceptionGroup，提取所有异常信息
+            if hasattr(e, 'exceptions'):
+                errors = []
+                for exc in e.exceptions:
+                    errors.append(f"{type(exc).__name__}: {str(exc)}")
+                error_msg = "; ".join(errors)
+            
             if attempt < max_retries - 1:
-                logger.info(f"等待MCP服务器启动... (尝试 {attempt + 1}/{max_retries}, 错误: {type(e).__name__})")
+                logger.info(f"等待MCP服务器启动... (尝试 {attempt + 1}/{max_retries}, 错误: {error_msg})")
                 await asyncio.sleep(retry_delay)
                 continue
             else:
-                logger.warning(f"MCP服务器连接失败: {e}，将尝试继续启动（工具可能不可用）")
+                logger.warning(f"MCP服务器连接失败: {error_msg}，将尝试继续启动（工具可能不可用）")
                 import traceback
                 logger.error(f"MCP连接详细错误:\n{traceback.format_exc()}")
                 tools = []
@@ -129,19 +141,29 @@ CRITICAL RULES - 必须严格遵守：
 1. 如果用户说的是问候语（如"你好"、"hello"、"hi"等），直接友好回复，绝对不要调用任何工具
 2. 如果用户的问题不涉及数学计算，直接回答，不要调用工具
 3. 只有在用户明确要求进行数学计算时，才使用工具
+4. **最重要**：每次请求最多只调用一次工具。调用工具得到结果后，必须立即返回最终答案并结束处理，绝对不要再调用任何工具或进行任何迭代
 
-可用工具（仅在需要数学计算时使用）：
+工作流程（严格遵守）：
+- 步骤1：分析用户请求，决定是否需要计算
+- 步骤2：如果需要计算，调用一次工具（add_numbers、multiply_numbers 或 calculate_expression）
+- 步骤3：得到工具结果后，立即生成最终回复并结束，格式为："答案是 [结果]" 或 "计算结果为 [结果]"
+- **绝对不要进入步骤4**：不要再次调用工具，不要继续迭代
+
+可用工具（仅在需要数学计算时使用，且每种计算只能调用一次）：
 - add_numbers(a, b): 两数相加
 - multiply_numbers(a, b): 两数相乘  
 - calculate_expression(expression): 计算数学表达式（仅支持数字和基本运算符，如 +-*/）
 
-正确示例：
-- 用户："你好" → 回复："你好！我是数学计算助手，可以帮你进行数学计算。"（不使用工具）
-- 用户："计算 5 + 3" → 使用工具：add_numbers(5, 3)
-- 用户："2 * 4" → 使用工具：multiply_numbers(2, 4)
-- 用户："2+3*4" → 使用工具：calculate_expression("2+3*4")
+正确示例（这些只是说明，不要执行）：
+- 如果用户说问候语 → 直接友好回复，不使用工具
+- 如果用户说"计算 X + Y" → 调用一次 add_numbers(X, Y)，得到结果后立即回复并结束
+- 如果用户说"X * Y" → 调用一次 multiply_numbers(X, Y)，得到结果后立即回复并结束
+- 如果用户给出数学表达式字符串 → 调用一次 calculate_expression(表达式)，得到结果后立即回复并结束
 
-记住：问候和闲聊绝对不要调用工具！"""
+**绝对禁止**：
+- 调用工具后再次调用任何工具
+- 在得到工具结果后继续迭代
+- 对同一个计算问题调用多个工具"""
     
     agent = ReActAgent(
         tools=tools if tools else None,
@@ -152,54 +174,8 @@ CRITICAL RULES - 必须严格遵守：
     
     logger.info("Agent初始化完成，工具调用将由LlamaIndex自动处理")
 
-def extract_final_answer(raw_response: str) -> str:
-    """
-    从原始响应中提取最终答案
-    
-    Args:
-        raw_response: Agent 返回的原始响应文本
-        
-    Returns:
-        提取后的简洁答案
-    """
-    import re
-    
-    if not raw_response:
-        return ""
-    
-    # 优先从 "Answer:" 后提取
-    if 'Answer:' in raw_response:
-        answer_section = raw_response.rsplit('Answer:', 1)[-1].strip()
-        # 提取第一个简洁行（通常是数字或简短文本）
-        for line in answer_section.split('\n')[:3]:
-            cleaned = line.strip().replace('$', '').replace('\\boxed{', '').replace('}', '')
-            if cleaned and len(cleaned) < 30:
-                # 如果是数字或简短文本，直接返回
-                if re.match(r'^-?\d+\.?\d*$', cleaned) or len(cleaned.split()) < 5:
-                    return cleaned
-        # 如果没有找到，提取第一个数字
-        numbers = re.findall(r'-?\d+\.?\d*', answer_section)
-        if numbers:
-            return numbers[0]
-    
-    # 如果响应很长或包含多余内容，提取最后一个数字（通常是最终答案）
-    if len(raw_response) > 50 or 'Step' in raw_response or 'Thought' in raw_response:
-        numbers = re.findall(r'-?\d+\.?\d*', raw_response)
-        if numbers:
-            return numbers[-1]
-    
-    # 如果无法提取，返回原始响应的前200个字符
-    return raw_response[:200].strip() if len(raw_response) > 200 else raw_response.strip()
-
 def find_model_file() -> str:
     """获取模型文件路径"""
-    model_path = os.getenv("LLAMA_MODEL_PATH", None)
-    
-    # 如果指定了路径，直接使用
-    if model_path and os.path.exists(model_path):
-        return model_path
-    
-    # 如果未指定或路径不存在，使用默认文件名
     models_dir = "./models"
     default_filename = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
     default_path = os.path.join(models_dir, default_filename)
@@ -224,7 +200,7 @@ def find_model_file() -> str:
     
     # 如果没找到，报错
     raise FileNotFoundError(
-        f"模型文件不存在: {model_path or default_path}\n"
+        f"模型文件不存在: {default_path}\n"
         f"请先下载Llama 3.1 8B模型文件。\n"
         f"参考README.md中的模型下载说明。\n"
         f"默认文件名: {default_filename}"
@@ -315,11 +291,20 @@ async def chat(request: ChatRequest):
             user_msg=message, 
             memory=memory, 
             ctx=ctx,
-            max_iterations=10  # 减少迭代次数，避免等待时间过长
+            max_iterations=3  # 减少到3次，简单计算通常只需要1次迭代
         )
         
-        # 等待 workflow 完成并获取结果
-        result = await handler
+        # 等待 workflow 完成并获取结果（添加超时）
+        try:
+            result = await asyncio.wait_for(handler, timeout=120.0)  # 增加到120秒超时，因为生成更多token需要更长时间
+        except asyncio.TimeoutError:
+            logger.warning("Agent 处理超时（120秒）")
+            tool_names = await get_tool_names()
+            return ChatResponse(
+                response="抱歉，处理时间过长。请尝试重新表述您的问题，或使用更简单的计算。",
+                raw_response="超时错误: Agent 处理超过120秒",
+                tools_available=tool_names
+            )
         
         # 获取原始响应文本
         if hasattr(result, 'response') and hasattr(result.response, 'content'):
@@ -327,14 +312,12 @@ async def chat(request: ChatRequest):
         else:
             raw_response = str(result)
         
-        # 提取最终答案
-        final_answer = extract_final_answer(raw_response)
-        
+        # 直接使用原始响应，不进行提取处理
         # 获取可用工具列表
         tool_names = await get_tool_names()
         
         return ChatResponse(
-            response=final_answer,
+            response=raw_response,
             raw_response=raw_response,
             tools_available=tool_names
         )

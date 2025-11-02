@@ -3,18 +3,17 @@
 FROM debian:bookworm-slim AS builder
 
 # 配置 apt 代理（如果宿主机有代理）
+# 注意：只对 localhost 进行替换，其他代理地址（如 squid.corp.redhat.com）保持不变
 ARG BUILD_PROXY
-RUN echo "=== 调试：BUILD_PROXY 值（builder 阶段）===" && \
-    echo "BUILD_PROXY='$BUILD_PROXY'" && \
-    if [ -n "$BUILD_PROXY" ]; then \
-        APT_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
-        echo "配置 apt 代理: $APT_PROXY" && \
-        echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf.d/01proxy && \
-        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy && \
-        echo "代理配置文件内容:" && \
-        cat /etc/apt/apt.conf.d/01proxy; \
-    else \
-        echo "警告: BUILD_PROXY 未设置，将直接连接（可能需要配置代理）"; \
+RUN if [ -n "$BUILD_PROXY" ]; then \
+        if echo "$BUILD_PROXY" | grep -q "localhost"; then \
+            BUILD_PROXY_CONVERTED=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
+        else \
+            BUILD_PROXY_CONVERTED="$BUILD_PROXY"; \
+        fi && \
+        echo "配置 apt 代理: $BUILD_PROXY_CONVERTED" && \
+        echo "Acquire::http::Proxy \"$BUILD_PROXY_CONVERTED\";" > /etc/apt/apt.conf.d/01proxy && \
+        echo "Acquire::https::Proxy \"$BUILD_PROXY_CONVERTED\";" >> /etc/apt/apt.conf.d/01proxy; \
     fi
 
 # 配置 apt 重试和超时（独立层，可缓存）
@@ -35,20 +34,27 @@ RUN apt-get install -y --no-install-recommends --fix-missing \
 # 清理 apt 缓存（独立层，可缓存）
 RUN rm -rf /var/lib/apt/lists/*
 
+# 复制代理设置辅助脚本
+COPY docker-set-proxy.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-set-proxy.sh
+
 # 安装 uv（独立层，可缓存）
 # uv 安装到 /root/.local/bin，只有代理配置或 uv 版本改变时才重新下载
 ARG BUILD_PROXY
 RUN if [ -n "$BUILD_PROXY" ]; then \
-        UV_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
-        export http_proxy="$UV_PROXY" && \
-        export https_proxy="$UV_PROXY" && \
-        export HTTP_PROXY="$UV_PROXY" && \
-        export HTTPS_PROXY="$UV_PROXY"; \
-        echo "使用代理下载 uv: $UV_PROXY"; \
-        curl --proxy "$UV_PROXY" -LsSf https://astral.sh/uv/install.sh | sh; \
+        BUILD_PROXY_CONVERTED=$(/usr/local/bin/docker-set-proxy.sh "$BUILD_PROXY") && \
+        echo "使用代理下载 uv: $BUILD_PROXY_CONVERTED" && \
+        unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
+        export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED" && \
+        curl --proxy "$BUILD_PROXY_CONVERTED" -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \
+        sh /tmp/uv-install.sh && \
+        rm -f /tmp/uv-install.sh; \
     else \
         echo "不使用代理下载 uv"; \
-        curl -LsSf https://astral.sh/uv/install.sh | sh; \
+        unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
+        curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \
+        sh /tmp/uv-install.sh && \
+        rm -f /tmp/uv-install.sh; \
     fi
 
 # 验证 uv 安装（独立层，可缓存）
@@ -61,39 +67,36 @@ COPY pyproject.toml ./
 
 # 安装 Python（独立层，可缓存）
 # uv 会自动下载并管理 Python 3.11，Python 会缓存在 /root/.local/share/uv/python/
+ARG BUILD_PROXY
 RUN export PATH="/root/.local/bin:$PATH" && \
     if [ -n "$BUILD_PROXY" ]; then \
-        UV_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
-        export http_proxy="$UV_PROXY" && \
-        export https_proxy="$UV_PROXY" && \
-        export HTTP_PROXY="$UV_PROXY" && \
-        export HTTPS_PROXY="$UV_PROXY"; \
+        BUILD_PROXY_CONVERTED=$(/usr/local/bin/docker-set-proxy.sh "$BUILD_PROXY") && \
+        unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
+        export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED"; \
     fi && \
     echo "使用 uv 安装 Python 3.11..." && \
     uv python install 3.11 && \
     uv python list
 
 # 使用 uv sync 创建虚拟环境并安装依赖（独立层，只有依赖改变时才重新执行）
+ARG BUILD_PROXY
 RUN export PATH="/root/.local/bin:$PATH" && \
     if [ -n "$BUILD_PROXY" ]; then \
-        UV_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
-        export http_proxy="$UV_PROXY" && \
-        export https_proxy="$UV_PROXY" && \
-        export HTTP_PROXY="$UV_PROXY" && \
-        export HTTPS_PROXY="$UV_PROXY"; \
-        echo "已配置 uv 代理: $UV_PROXY"; \
+        BUILD_PROXY_CONVERTED=$(/usr/local/bin/docker-set-proxy.sh "$BUILD_PROXY") && \
+        unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
+        export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED" && \
+        echo "已配置 uv 代理: $BUILD_PROXY_CONVERTED"; \
     fi && \
     echo "=== 使用 uv sync 安装依赖（构建阶段，需要编译工具）===" && \
-    echo "当前工作目录: $(pwd)" && \
-    echo "检查 pyproject.toml: $(cat pyproject.toml | head -5)" && \
-    # 先尝试正常安装（优先使用预编译版本）
-    export PIP_PREFER_BINARY=1 && \
-    uv sync --verbose || \
-    (echo "预编译版本安装失败，尝试使用修复的编译选项从源码编译..." && \
-     export CMAKE_ARGS="-DGGML_CCACHE=OFF -DGGML_NATIVE=OFF -DCMAKE_C_FLAGS='-march=armv8-a' -DCMAKE_CXX_FLAGS='-march=armv8-a'" && \
-     export GGML_CCACHE=OFF && \
-     export GGML_NATIVE=OFF && \
-     uv sync --verbose) && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        echo "检测到 ARM 架构，设置编译选项..." && \
+        export CMAKE_ARGS="-DGGML_NATIVE=OFF -DCMAKE_C_FLAGS='-march=armv8-a' -DCMAKE_CXX_FLAGS='-march=armv8-a'" && \
+        export GGML_NATIVE=OFF; \
+    else \
+        echo "检测到架构: $ARCH，使用默认编译选项"; \
+    fi && \
+    uv sync --verbose && \
     echo "=== uv sync 完成 ===" && \
     # 验证虚拟环境和依赖
     ls -la /app/.venv/bin/ | head -10 && \
@@ -104,18 +107,17 @@ RUN export PATH="/root/.local/bin:$PATH" && \
 FROM debian:bookworm-slim
 
 # 配置 apt 代理（如果宿主机有代理）
+# 注意：只对 localhost 进行替换，其他代理地址（如 squid.corp.redhat.com）保持不变
 ARG BUILD_PROXY
-RUN echo "=== 调试：BUILD_PROXY 值（最终阶段）===" && \
-    echo "BUILD_PROXY='$BUILD_PROXY'" && \
-    if [ -n "$BUILD_PROXY" ]; then \
-        APT_PROXY=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
-        echo "配置 apt 代理: $APT_PROXY" && \
-        echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf.d/01proxy && \
-        echo "Acquire::https::Proxy \"$APT_PROXY\";" >> /etc/apt/apt.conf.d/01proxy && \
-        echo "代理配置文件内容:" && \
-        cat /etc/apt/apt.conf.d/01proxy; \
-    else \
-        echo "警告: BUILD_PROXY 未设置，将直接连接（可能需要配置代理）"; \
+RUN if [ -n "$BUILD_PROXY" ]; then \
+        if echo "$BUILD_PROXY" | grep -q "localhost"; then \
+            BUILD_PROXY_CONVERTED=$(echo "$BUILD_PROXY" | sed 's|localhost|host.docker.internal|g'); \
+        else \
+            BUILD_PROXY_CONVERTED="$BUILD_PROXY"; \
+        fi && \
+        echo "配置 apt 代理: $BUILD_PROXY_CONVERTED" && \
+        echo "Acquire::http::Proxy \"$BUILD_PROXY_CONVERTED\";" > /etc/apt/apt.conf.d/01proxy && \
+        echo "Acquire::https::Proxy \"$BUILD_PROXY_CONVERTED\";" >> /etc/apt/apt.conf.d/01proxy; \
     fi
 
 # 配置 apt 重试和超时（与 builder 阶段一致）
