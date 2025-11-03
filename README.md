@@ -25,6 +25,8 @@
 - https://hackteam.io/blog/your-llm-does-not-care-about-mcp/
 - https://medium.com/@infin94/kickstart-your-research-instantly-generate-synthetic-text-data-with-llama-3-1-56eaee6fbf48
 - https://levelup.gitconnected.com/how-i-built-a-tool-calling-llama-agent-with-a-custom-mcp-server-3bc057d27e85
+- https://www.anthropic.com/news/model-context-protocol
+- https://github.com/Kludex/starlette
 
 ## 功能特性
 
