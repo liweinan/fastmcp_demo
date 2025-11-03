@@ -60,7 +60,6 @@ class ChatRequest(BaseModel):
     message: str
 
 class ChatResponse(BaseModel):
-    response: str  # 提取后的简洁答案
     raw_response: str  # 原始完整响应
     tools_available: List[str]
 
@@ -252,9 +251,9 @@ async def chat(request: ChatRequest):
         message = request.message.strip()
         if not message or len(message) < 2:
             tool_names = await get_tool_names()
+            raw_response = "输入消息过短或为空"
             return ChatResponse(
-                response="请输入一个有效的问题或计算请求。",
-                raw_response="输入消息过短或为空",
+                raw_response=raw_response,
                 tools_available=tool_names
             )
         
@@ -268,9 +267,9 @@ async def chat(request: ChatRequest):
         if not has_math_content:
             logger.info("未检测到数学计算内容，直接回复，不调用 Agent")
             tool_names = await get_tool_names()
+            raw_response = "非数学问题 - 直接回复，未调用 Agent"
             return ChatResponse(
-                response="你好！我是数学计算助手，可以帮助你进行数学计算。你可以问我：\n- 计算 5 + 3\n- 2 * 4 等于多少\n- 计算 10 + 20 * 2\n等等。",
-                raw_response="非数学问题 - 直接回复，未调用 Agent",
+                raw_response=raw_response,
                 tools_available=tool_names
             )
         
@@ -300,9 +299,9 @@ async def chat(request: ChatRequest):
         except asyncio.TimeoutError:
             logger.warning("Agent 处理超时（120秒）")
             tool_names = await get_tool_names()
+            raw_response = "超时错误: Agent 处理超过120秒"
             return ChatResponse(
-                response="抱歉，处理时间过长。请尝试重新表述您的问题，或使用更简单的计算。",
-                raw_response="超时错误: Agent 处理超过120秒",
+                raw_response=raw_response,
                 tools_available=tool_names
             )
         
@@ -317,7 +316,6 @@ async def chat(request: ChatRequest):
         tool_names = await get_tool_names()
         
         return ChatResponse(
-            response=raw_response,
             raw_response=raw_response,
             tools_available=tool_names
         )
@@ -326,17 +324,17 @@ async def chat(request: ChatRequest):
         error_msg = str(e)
         logger.warning(f"Agent 达到最大迭代次数: {error_msg}")
         tool_names = await get_tool_names()
+        raw_response = f"错误: {error_msg}"
         return ChatResponse(
-            response="抱歉，处理时间过长。请尝试：\n1. 重新表述您的问题\n2. 将复杂问题拆分为更简单的步骤\n3. 确保问题完整且清晰",
-            raw_response=f"错误: {error_msg}",
+            raw_response=raw_response,
             tools_available=tool_names
         )
     except Exception as e:
         logger.error(f"处理请求时出错: {e}", exc_info=True)
         tool_names = await get_tool_names()
+        raw_response = f"错误详情: {str(e)}"
         return ChatResponse(
-            response=f"处理请求时出错: {str(e)}",
-            raw_response=f"错误详情: {str(e)}",
+            raw_response=raw_response,
             tools_available=tool_names
         )
 
