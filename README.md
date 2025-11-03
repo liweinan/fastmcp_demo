@@ -4,6 +4,23 @@
 - **FastMCP 服务器**：暴露计算工具接口（通过 MCP 协议和 SSE 传输）
 - **FastAPI Chat 服务器**：提供聊天服务，LLM 通过 MCP 客户端调用 FastMCP 工具
 
+<img width="3840" height="2110" alt="b076f65573ef5b15190df9424cd20a12" src="https://github.com/user-attachments/assets/30232728-9b46-4393-8a54-8b09b26f685b" />
+
+## 使用模型
+
+- https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
+
+## 参考文档
+
+- https://developers.llamaindex.ai/python/examples/agent/react_agent/
+- https://www.ibm.com/think/topics/react-agent
+- https://modelcontextprotocol.io/docs/getting-started/intro
+- https://hackteam.io/blog/your-llm-does-not-care-about-mcp/
+- https://medium.com/@infin94/kickstart-your-research-instantly-generate-synthetic-text-data-with-llama-3-1-56eaee6fbf48
+- https://levelup.gitconnected.com/how-i-built-a-tool-calling-llama-agent-with-a-custom-mcp-server-3bc057d27e85
+
+^^^
+
 ## 功能特性
 
 - 🤖 **真实的LLM推理**：使用 Llama 3.1 8B 语言模型（支持原生tool_calls）
