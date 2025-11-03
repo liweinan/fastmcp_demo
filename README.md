@@ -1051,3 +1051,225 @@ chat-server (Agent)
 ---
 
 **注意**：以上日志基于 DEBUG 级别的日志输出。默认情况下，MCP 相关日志已设置为 DEBUG 级别，并使用自定义格式化器进行格式化，确保 JSON 数据以易读格式输出，中文正确显示。
+
+## 调试和容器命令
+
+### 进入容器进行调试
+
+当需要深入调试或排查问题时，可以进入容器执行命令。
+
+#### 查看运行中的容器
+
+```bash
+docker ps
+```
+
+#### 进入 mcp-server 容器
+
+```bash
+docker exec -it fastmcp_demo-mcp-server-1 /bin/bash
+```
+
+#### 进入 chat-server 容器
+
+```bash
+docker exec -it fastmcp_demo-chat-server-1 /bin/bash
+```
+
+### 常用调试命令
+
+#### 1. 检查 FastMCP 实例属性
+
+在 mcp-server 容器中检查 FastMCP 实例的结构：
+
+```bash
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
+from mcp.server.fastmcp import FastMCP
+mcp = FastMCP('Test')
+print('app:', hasattr(mcp, 'app'))
+print('_app:', hasattr(mcp, '_app'))
+print('sse_app:', hasattr(mcp, 'sse_app'))
+print('streamable_http_app:', hasattr(mcp, 'streamable_http_app'))
+print('包含 app 的属性:', [x for x in dir(mcp) if 'app' in x.lower()])
+"
+```
+
+**输出示例：**
+```
+app: False
+_app: False
+sse_app: True
+streamable_http_app: True
+包含 app 的属性: ['sse_app', 'streamable_http_app']
+```
+
+#### 2. 检查 Python 环境和依赖
+
+```bash
+# 检查 Python 版本
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python --version
+
+# 检查已安装的包
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/pip list
+
+# 检查特定包
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/pip show fastmcp
+```
+
+#### 3. 检查日志配置
+
+```bash
+# 在容器内测试日志格式化器
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
+import logging
+import json
+from mcp_server import MCPProtocolFormatter
+
+formatter = MCPProtocolFormatter('%(message)s')
+record = logging.LogRecord(
+    name='test',
+    level=logging.DEBUG,
+    pathname='',
+    lineno=0,
+    msg='Test JSON: %s',
+    args=('{\"key\": \"value\"}',),
+    exc_info=None
+)
+print(formatter.format(record))
+"
+```
+
+#### 4. 检查 MCP 工具注册
+
+```bash
+# 检查工具是否正确注册
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
+from mcp_server import mcp
+print('FastMCP 实例:', mcp)
+print('工具数量:', len([x for x in dir(mcp) if not x.startswith('_')]))
+"
+```
+
+#### 5. 测试工具函数
+
+```bash
+# 直接测试工具函数
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
+from mcp_server import calculate_expression
+result = calculate_expression('10 + 20 * 2')
+print('计算结果:', result)
+"
+```
+
+#### 6. 检查网络连接
+
+```bash
+# 从 chat-server 容器测试连接到 mcp-server
+docker exec fastmcp_demo-chat-server-1 /bin/bash -c "
+curl -v http://mcp-server:8100/sse 2>&1 | head -20
+"
+
+# 从 mcp-server 容器测试自身
+docker exec fastmcp_demo-mcp-server-1 /bin/bash -c "
+curl -v http://localhost:8100/sse 2>&1 | head -20
+"
+```
+
+#### 7. 查看实时日志
+
+```bash
+# 查看 mcp-server 日志
+docker logs -f fastmcp_demo-mcp-server-1
+
+# 查看 chat-server 日志
+docker logs -f fastmcp_demo-chat-server-1
+
+# 同时查看两个服务的日志
+docker-compose logs -f
+```
+
+#### 8. 检查环境变量
+
+```bash
+# 查看 mcp-server 环境变量
+docker exec fastmcp_demo-mcp-server-1 env
+
+# 查看 chat-server 环境变量
+docker exec fastmcp_demo-chat-server-1 env
+```
+
+#### 9. 检查文件系统
+
+```bash
+# 检查模型文件是否存在
+docker exec fastmcp_demo-chat-server-1 ls -lh /app/models/
+
+# 检查虚拟环境
+docker exec fastmcp_demo-mcp-server-1 ls -la /app/.venv/bin/ | head -20
+
+# 检查代码文件
+docker exec fastmcp_demo-mcp-server-1 cat /app/mcp_server.py | head -50
+```
+
+### 调试技巧
+
+1. **使用交互式 Python Shell**：
+   ```bash
+   docker exec -it fastmcp_demo-mcp-server-1 /app/.venv/bin/python
+   ```
+   然后在 Python shell 中导入模块进行交互式调试：
+   ```python
+   >>> from mcp_server import mcp
+   >>> import inspect
+   >>> print(inspect.getmembers(mcp))
+   ```
+
+2. **修改代码并重新加载**：
+   - 如果使用 Docker volumes 挂载代码，修改后容器会自动检测变化（如果使用开发模式）
+   - 或者需要重启容器：`docker-compose restart mcp-server`
+
+3. **启用更详细的日志**：
+   - 在容器内修改日志级别或添加临时日志语句
+   - 查看格式化后的日志输出
+
+4. **网络调试**：
+   - 使用 `curl` 或 `wget` 测试 HTTP 端点
+   - 检查端口是否开放：`netstat -tlnp`（如果可用）
+
+### 常见问题排查
+
+#### 问题：容器无法启动
+
+```bash
+# 查看容器启动日志
+docker logs fastmcp_demo-mcp-server-1
+
+# 检查容器状态
+docker ps -a | grep fastmcp_demo
+```
+
+#### 问题：模块导入错误
+
+```bash
+# 检查 Python 路径
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "import sys; print(sys.path)"
+
+# 检查模块是否可以导入
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "import mcp_server; print('导入成功')"
+```
+
+#### 问题：工具调用失败
+
+```bash
+# 直接测试工具函数
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
+from mcp_server import add_numbers, multiply_numbers, calculate_expression
+print('add_numbers(2, 3):', add_numbers(2, 3))
+print('multiply_numbers(4, 5):', multiply_numbers(4, 5))
+print('calculate_expression(\"10+20*2\"):', calculate_expression('10+20*2'))
+"
+```
+
+---
+
+**提示**：以上命令可以帮助快速定位问题。如果遇到无法解决的问题，可以查看完整的容器日志或联系维护者。
