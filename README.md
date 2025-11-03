@@ -762,3 +762,292 @@ agent = ReActAgent(
 2. 确认代理配置正确
 3. 尝试清理 Docker 缓存：`docker system prune -a`
 4. 使用 `--no-cache` 重新构建
+
+## MCP 协议交互分析报告
+
+本节基于实际的日志输出，详细分析一次完整的 MCP 协议交互流程，帮助理解 chat-server 和 mcp-server 之间的通信过程。
+
+### 请求场景
+
+用户向 chat-server 发送请求：`计算 10 + 20 * 2`
+
+### 完整的交互流程
+
+#### 1. SSE 连接建立
+
+**chat-server → mcp-server**
+
+```
+chat-server-1  | 2025-11-03 04:18:30,522 - httpx - INFO - HTTP Request: GET http://mcp-server:8100/sse "HTTP/1.1 200 OK"
+```
+
+**mcp-server 日志：**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,520 - mcp.server.sse - DEBUG - Setting up SSE connection
+mcp-server-1   | 2025-11-03 04:18:30,520 - mcp.server.sse - DEBUG - Created new session with ID: bdd2d4d9-feb5-4331-8891-f4a747248ee1
+mcp-server-1   | 2025-11-03 04:18:30,521 - mcp.server.sse - DEBUG - Starting SSE response task
+mcp-server-1   | INFO:     172.21.0.3:39074 - "GET /sse HTTP/1.1" 200 OK
+```
+
+**说明**：chat-server 通过 GET 请求建立 SSE 长连接，mcp-server 创建新的会话并返回会话 ID。
+
+---
+
+#### 2. 初始化阶段（initialize）
+
+**chat-server → mcp-server**（POST /messages/）
+
+```
+chat-server-1  | 2025-11-03 04:18:30,524 - httpx - INFO - HTTP Request: POST http://mcp-server:8100/messages/?session_id=bdd2d4d9feb543318891f4a747248ee1 "HTTP/1.1 202 Accepted"
+```
+
+**mcp-server 日志 - 接收请求：**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Handling POST message
+mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Parsed session ID: bdd2d4d9-feb5-4331-8891-f4a747248ee1
+mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Received JSON: b'{"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"mcp","version":"0.1.0"}},"jsonrpc":"2.0","id":0}'
+mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='initialize', params={'protocolVersion': '2025-06-18', 'capabilities': {}, 'clientInfo': {'name': 'mcp', 'version': '0.1.0'}}, jsonrpc='2.0', id=0)
+```
+
+**mcp-server → chat-server**（通过 SSE 流返回响应）
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=0, result={'protocolVersion': '2025-06-18', 'capabilities': {...}, 'serverInfo': {'name': 'MathTools', 'version': '1.20.0'}})), metadata=None)
+```
+
+**格式化后的响应（通过日志格式化器）：**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,524 - sse_starlette.sse - DEBUG - [SSE Chunk - 已格式化]
+mcp-server-1   | {
+mcp-server-1   |   "jsonrpc": "2.0",
+mcp-server-1   |   "id": 0,
+mcp-server-1   |   "result": {
+mcp-server-1   |     "protocolVersion": "2025-06-18",
+mcp-server-1   |     "capabilities": {
+mcp-server-1   |       "experimental": {},
+mcp-server-1   |       "prompts": {"listChanged": false},
+mcp-server-1   |       "resources": {"subscribe": false, "listChanged": false},
+mcp-server-1   |       "tools": {"listChanged": false}
+mcp-server-1   |     },
+mcp-server-1   |     "serverInfo": {
+mcp-server-1   |       "name": "MathTools",
+mcp-server-1   |       "version": "1.20.0"
+mcp-server-1   |     }
+mcp-server-1   |   }
+mcp-server-1   | }
+```
+
+**说明**：
+- chat-server 发送 `initialize` 请求，包含协议版本和客户端信息
+- mcp-server 返回服务器能力信息和服务器信息（名称、版本）
+
+---
+
+#### 3. 初始化完成通知（notifications/initialized）
+
+**chat-server → mcp-server**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,526 - mcp.server.sse - DEBUG - Received JSON: b'{"method":"notifications/initialized","jsonrpc":"2.0"}'
+mcp-server-1   | 2025-11-03 04:18:30,526 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCNotification(method='notifications/initialized', params=None, jsonrpc='2.0')
+```
+
+**说明**：chat-server 通知 mcp-server 初始化已完成（这是 MCP 协议的标准流程）。
+
+---
+
+#### 4. 工具列表查询（tools/list）
+
+**chat-server → mcp-server**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.sse - DEBUG - Received JSON: b'{"method":"tools/list","jsonrpc":"2.0","id":1}'
+mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='tools/list', params=None, jsonrpc='2.0', id=1)
+```
+
+**mcp-server 处理请求：**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - DEBUG - Dispatching request of type ListToolsRequest
+mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - DEBUG - Response sent
+```
+
+**mcp-server → chat-server**（返回工具列表）
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,531 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=1, result={'tools': [...]})))
+```
+
+**格式化后的工具列表响应：**
+
+```
+mcp-server-1   | {
+mcp-server-1   |   "jsonrpc": "2.0",
+mcp-server-1   |   "id": 1,
+mcp-server-1   |   "result": {
+mcp-server-1   |     "tools": [
+mcp-server-1   |       {
+mcp-server-1   |         "name": "add_numbers",
+mcp-server-1   |         "description": "计算两个数字的加法。\n重要：仅在用户明确要求进行加法计算时使用此工具...",
+mcp-server-1   |         "inputSchema": {...},
+mcp-server-1   |         "outputSchema": {...}
+mcp-server-1   |       },
+mcp-server-1   |       {
+mcp-server-1   |         "name": "multiply_numbers",
+mcp-server-1   |         "description": "计算两个数字的乘法。\n重要：仅在用户明确要求进行乘法计算时使用此工具...",
+mcp-server-1   |         "inputSchema": {...},
+mcp-server-1   |         "outputSchema": {...}
+mcp-server-1   |       },
+mcp-server-1   |       {
+mcp-server-1   |         "name": "calculate_expression",
+mcp-server-1   |         "description": "计算数学表达式。表达式必须只包含数字和基本运算符...",
+mcp-server-1   |         "inputSchema": {...},
+mcp-server-1   |         "outputSchema": {...}
+mcp-server-1   |       }
+mcp-server-1   |     ]
+mcp-server-1   |   }
+mcp-server-1   | }
+```
+
+**说明**：
+- chat-server 请求工具列表
+- mcp-server 返回所有可用工具及其描述、输入输出模式
+- 工具描述包含使用场景说明，帮助 Agent 决定何时使用哪个工具
+
+---
+
+#### 5. 工具调用（tools/call）
+
+**chat-server → mcp-server**（请求调用 `calculate_expression` 工具）
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,527 - mcp.server.sse - DEBUG - Received JSON: b'{"method":"tools/call","params":{"name":"calculate_expression","arguments":{"expression":"10 + 20 * 2"}},"jsonrpc":"2.0","id":1}'
+mcp-server-1   | 2025-11-03 04:18:30,527 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='tools/call', params={'name': 'calculate_expression', 'arguments': {'expression': '10 + 20 * 2'}}, jsonrpc='2.0', id=1)
+```
+
+**mcp-server 处理工具调用：**
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,528 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
+mcp-server-1   | 2025-11-03 04:18:30,528 - mcp.server.lowlevel.server - DEBUG - Dispatching request of type CallToolRequest
+mcp-server-1   | 2025-11-03 04:18:30,528 - __main__ - INFO - [FastMCP Tool] calculate_expression(expression='10 + 20 * 2')
+mcp-server-1   | 2025-11-03 04:18:30,528 - __main__ - INFO - [FastMCP Tool] calculate_expression 结果: 50.0
+mcp-server-1   | 2025-11-03 04:18:30,529 - mcp.server.lowlevel.server - DEBUG - Response sent
+```
+
+**mcp-server → chat-server**（返回工具执行结果）
+
+```
+mcp-server-1   | 2025-11-03 04:18:30,529 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=1, result={'content': [{'type': 'text', 'text': '50.0'}], 'structuredContent': {'result': 50.0}, 'isError': False})), metadata=None)
+```
+
+**格式化后的工具调用响应：**
+
+```
+mcp-server-1   | {
+mcp-server-1   |   "jsonrpc": "2.0",
+mcp-server-1   |   "id": 1,
+mcp-server-1   |   "result": {
+mcp-server-1   |     "content": [
+mcp-server-1   |       {
+mcp-server-1   |         "type": "text",
+mcp-server-1   |         "text": "50.0"
+mcp-server-1   |       }
+mcp-server-1   |     ],
+mcp-server-1   |     "structuredContent": {
+mcp-server-1   |       "result": 50.0
+mcp-server-1   |     },
+mcp-server-1   |     "isError": false
+mcp-server-1   |   }
+mcp-server-1   | }
+```
+
+**说明**：
+- chat-server（Agent）根据用户请求决定调用 `calculate_expression` 工具，参数为 `"10 + 20 * 2"`
+- mcp-server 执行工具函数，计算结果为 `50.0`
+- mcp-server 返回格式化的结果，包含文本格式和结构化格式
+
+---
+
+#### 6. 最终响应
+
+**chat-server 返回给用户：**
+
+```json
+{
+  "raw_response": "50.0\n\n\n\n## Step 1: Determine the task\n...",
+  "tools_available": [
+    "add_numbers",
+    "multiply_numbers",
+    "calculate_expression"
+  ]
+}
+```
+
+---
+
+### 关键发现
+
+1. **双向通信**：
+   - chat-server → mcp-server：通过 `POST /messages/` 发送 JSON-RPC 请求
+   - mcp-server → chat-server：通过 SSE 流返回 JSON-RPC 响应
+
+2. **会话管理**：
+   - 每个 SSE 连接有唯一的 `session_id`
+   - 所有请求都通过 `?session_id=xxx` 参数关联到同一个会话
+
+3. **请求-响应匹配**：
+   - JSON-RPC 协议通过 `id` 字段匹配请求和响应
+   - 例如：初始化请求 `id=0`，对应的响应也是 `id=0`
+
+4. **工具调用流程**：
+   - Agent 先获取工具列表（了解可用工具）
+   - Agent 分析用户请求，决定调用哪个工具
+   - Agent 发送 `tools/call` 请求，包含工具名称和参数
+   - mcp-server 执行工具并返回结果
+   - Agent 将结果整合到最终回复中
+
+5. **日志格式化器的作用**：
+   - 自动格式化 JSON-RPC 消息，使其更易读
+   - 将中文 Unicode 转义序列转换为可读中文
+   - 格式化 SSE chunk 中的 JSON 数据
+   - 帮助开发者理解 MCP 协议的详细交互过程
+
+### 日志查看技巧
+
+1. **查看完整的 MCP 交互**：在 mcp-server 日志中搜索 `Sending message via SSE` 或 `Received JSON`
+2. **查看工具执行**：搜索 `[FastMCP Tool]` 查看工具的实际执行情况
+3. **查看格式化后的 JSON**：搜索 `[SSE Chunk - 已格式化]` 查看格式化后的 JSON 响应
+4. **跟踪会话**：通过 `session_id` 跟踪同一会话的所有请求和响应
+
+### 协议流程图
+
+```
+用户请求: "计算 10 + 20 * 2"
+    ↓
+chat-server (Agent)
+    ↓
+1. GET /sse (建立 SSE 连接)
+    ↓
+2. POST /messages/ (initialize)
+    ↓
+3. POST /messages/ (notifications/initialized)
+    ↓
+4. POST /messages/ (tools/list) ← mcp-server 返回工具列表
+    ↓
+5. Agent 分析：需要调用 calculate_expression
+    ↓
+6. POST /messages/ (tools/call) ← mcp-server 执行工具并返回结果
+    ↓
+7. Agent 生成最终回复
+    ↓
+返回给用户: {"raw_response": "...", "tools_available": [...]}
+```
+
+---
+
+**注意**：以上日志基于 DEBUG 级别的日志输出。默认情况下，MCP 相关日志已设置为 DEBUG 级别，并使用自定义格式化器进行格式化，确保 JSON 数据以易读格式输出，中文正确显示。
