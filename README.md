@@ -6,6 +6,13 @@
 
 <img width="3840" height="2110" alt="b076f65573ef5b15190df9424cd20a12" src="https://github.com/user-attachments/assets/30232728-9b46-4393-8a54-8b09b26f685b" />
 
+## 相关项目：
+
+- https://github.com/fastapi/fastapi
+- https://github.com/jlowin/fastmcp
+- https://github.com/ggml-org/llama.cpp
+- https://github.com/run-llama/llama_index
+
 ## 使用模型
 
 - https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
@@ -18,8 +25,6 @@
 - https://hackteam.io/blog/your-llm-does-not-care-about-mcp/
 - https://medium.com/@infin94/kickstart-your-research-instantly-generate-synthetic-text-data-with-llama-3-1-56eaee6fbf48
 - https://levelup.gitconnected.com/how-i-built-a-tool-calling-llama-agent-with-a-custom-mcp-server-3bc057d27e85
-
-^^^
 
 ## 功能特性
 
