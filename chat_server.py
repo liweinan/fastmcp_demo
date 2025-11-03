@@ -1,18 +1,18 @@
 """
 FastAPI Chat服务器 - 使用LlamaIndex自动处理工具调用
 """
-import os
-import logging
 import asyncio
+import logging
+import os
 from contextlib import asynccontextmanager
-from typing import Dict, Any, List, Optional
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
 from llama_index.core.agent import ReActAgent
 from llama_index.llms.llama_cpp import LlamaCPP
-from llama_index.tools.mcp import McpToolSpec, BasicMCPClient
+from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
+from pydantic import BaseModel
 
 # 配置日志
 logging.basicConfig(

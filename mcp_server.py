@@ -2,12 +2,10 @@
 FastMCP服务器 - 暴露计算工具
 FastMCP通过SSE端点自动暴露工具列表，无需手工实现
 """
+import json
 import logging
 import re
-import json
-from typing import Callable
-from fastapi import Request, Response
-from fastapi.routing import APIRoute
+
 try:
     from mcp.server.fastmcp import FastMCP
 except ImportError:
@@ -50,7 +48,6 @@ class MCPProtocolFormatter(logging.Formatter):
         # 格式化 JSON-RPC 消息（处理各种可能的格式）
         if any(keyword in message for keyword in ['JSONRPCMessage', 'SessionMessage', 'Sending message', 'Dispatching request', 'Processing request']):
             try:
-                import re
                 json_match = re.search(r'\{.*\}', message, re.DOTALL)
                 if json_match:
                     json_str = json_match.group(0)
@@ -62,7 +59,6 @@ class MCPProtocolFormatter(logging.Formatter):
         # 格式化 SSE chunk（处理二进制字符串）
         if 'chunk:' in message:
             try:
-                import re
                 # 匹配 chunk: %s 格式（处理占位符）
                 # 如果 record.args 存在且包含数据，直接处理 args
                 if record.args and len(record.args) > 0:
