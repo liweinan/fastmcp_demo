@@ -17,5 +17,5 @@ dependencies = [
 ]
 
 [tool.uv]
-# 不使用 dev-dependencies，已废弃
+# Not using dev-dependencies, deprecated
 

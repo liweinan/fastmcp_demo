@@ -259,6 +259,7 @@ async def chat(request: ChatRequest):
         
         # Use whitelist: only call LLM if contains "addition/subtraction/multiplication/division/calculation"
         user_message_lower = message.lower()
+        # Math keywords in both Chinese and English for detection
         math_keywords = ['计算', '算', '加', '减', '乘', '除', '等于', '等于多少', '+', '-', '*', '/', 'calculate', 'compute', 'add', 'multiply', 'divide']
         has_math_content = any(keyword in user_message_lower for keyword in math_keywords) or \
                           any(char.isdigit() for char in user_message_lower)
