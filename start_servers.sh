@@ -1,31 +1,31 @@
 #!/bin/bash
 
-# 启动FastMCP和Chat服务器的脚本
+# Script to start FastMCP and Chat servers
 
-echo "=== FastMCP Demo 启动脚本 ==="
+echo "=== FastMCP Demo Startup Script ==="
 
-# 检查模型文件
+# Check model file
 if [ ! -f "./models/qwen2-1_5b-instruct-q4_k_m.gguf" ]; then
-    echo "警告: 模型文件不存在，请先下载模型文件"
-    echo "参考README.md中的说明"
+    echo "Warning: Model file does not exist, please download model file first"
+    echo "Refer to README.md for instructions"
 fi
 
-# 启动FastMCP服务器（后台）
-echo "启动FastMCP服务器（端口8100）..."
+# Start FastMCP server (background)
+echo "Starting FastMCP server (port 8100)..."
 python mcp_server.py &
 MCP_PID=$!
-echo "FastMCP服务器PID: $MCP_PID"
+echo "FastMCP server PID: $MCP_PID"
 
-# 等待MCP服务器启动
+# Wait for MCP server to start
 sleep 3
 
-# 启动Chat服务器（前台）
-echo "启动Chat服务器（端口8000）..."
-echo "访问 http://localhost:8000/docs 查看API文档"
-echo "按 Ctrl+C 停止所有服务"
+# Start Chat server (foreground)
+echo "Starting Chat server (port 8000)..."
+echo "Visit http://localhost:8000/docs to view API documentation"
+echo "Press Ctrl+C to stop all services"
 python chat_server.py
 
-# 清理：如果Chat服务器退出，停止MCP服务器
+# Cleanup: If Chat server exits, stop MCP server
 kill $MCP_PID 2>/dev/null
-echo "所有服务已停止"
+echo "All services stopped"
 

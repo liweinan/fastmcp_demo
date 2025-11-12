@@ -1,11 +1,11 @@
 services:
-  # FastMCP服务器 - 暴露工具接口
+  # FastMCP server - Exposes tool interfaces
   mcp-server:
     build:
       context: .
       args:
         BUILD_PROXY: ${BUILD_PROXY:-}
-    image: fastmcp-demo:latest  # 使用共享镜像标签
+    image: fastmcp-demo:latest  # Use shared image tag
     ports:
       - "8100:8100"
     volumes:
@@ -17,9 +17,9 @@ services:
     networks:
       - fastmcp-network
 
-  # FastAPI Chat服务器 - 提供聊天服务
+  # FastAPI Chat server - Provides chat service
   chat-server:
-    image: fastmcp-demo:latest  # 复用同一个镜像，避免重复构建
+    image: fastmcp-demo:latest  # Reuse same image to avoid duplicate builds
     ports:
       - "8000:8000"
     volumes:
@@ -27,7 +27,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - MCP_SERVER_URL=http://mcp-server:8100
-      # 清除可能残留的代理环境变量（避免影响容器间通信）
+      # Clear possible residual proxy environment variables (avoid affecting inter-container communication)
       - http_proxy=
       - https_proxy=
       - HTTP_PROXY=

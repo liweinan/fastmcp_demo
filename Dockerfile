@@ -1,9 +1,9 @@
-# 多阶段构建：第一阶段使用轻量级基础镜像 + uv 管理 Python
-# 使用 debian:bookworm-slim 作为基础，uv 会自动管理 Python 环境
+# Multi-stage build: First stage uses lightweight base image + uv manages Python
+# Uses debian:bookworm-slim as base, uv automatically manages Python environment
 FROM debian:bookworm-slim AS builder
 
-# 配置 apt 代理（如果宿主机有代理）
-# 注意：只对 localhost 进行替换，其他代理地址（如 squid.corp.redhat.com）保持不变
+# Configure apt proxy (if host has proxy)
+# Note: Only replace localhost, other proxy addresses (like squid.corp.redhat.com) remain unchanged
 ARG BUILD_PROXY
 RUN if [ -n "$BUILD_PROXY" ]; then \
         if echo "$BUILD_PROXY" | grep -q "localhost"; then \
@@ -11,62 +11,62 @@ RUN if [ -n "$BUILD_PROXY" ]; then \
         else \
             BUILD_PROXY_CONVERTED="$BUILD_PROXY"; \
         fi && \
-        echo "配置 apt 代理: $BUILD_PROXY_CONVERTED" && \
+        echo "Configuring apt proxy: $BUILD_PROXY_CONVERTED" && \
         echo "Acquire::http::Proxy \"$BUILD_PROXY_CONVERTED\";" > /etc/apt/apt.conf.d/01proxy && \
         echo "Acquire::https::Proxy \"$BUILD_PROXY_CONVERTED\";" >> /etc/apt/apt.conf.d/01proxy; \
     fi
 
-# 配置 apt 重试和超时（独立层，可缓存）
+# Configure apt retry and timeout (independent layer, cacheable)
 RUN echo 'Acquire::Retries "10";' >> /etc/apt/apt.conf.d/99-retries && \
     echo 'Acquire::http::Timeout "120";' >> /etc/apt/apt.conf.d/99-timeout && \
     echo 'Acquire::https::Timeout "120";' >> /etc/apt/apt.conf.d/99-timeout
 
-# 更新包列表（独立层，可缓存）
+# Update package list (independent layer, cacheable)
 RUN apt-get update
 
-# 安装基础工具和编译工具（独立层，可缓存）
+# Install base tools and build tools (independent layer, cacheable)
 RUN apt-get install -y --no-install-recommends --fix-missing \
     ca-certificates \
     curl \
     build-essential \
     cmake
 
-# 清理 apt 缓存（独立层，可缓存）
+# Clean apt cache (independent layer, cacheable)
 RUN rm -rf /var/lib/apt/lists/*
 
-# 复制代理设置辅助脚本
+# Copy proxy setup helper script
 COPY docker-set-proxy.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-set-proxy.sh
 
-# 安装 uv（独立层，可缓存）
-# uv 安装到 /root/.local/bin，只有代理配置或 uv 版本改变时才重新下载
+# Install uv (independent layer, cacheable)
+# uv installed to /root/.local/bin, only re-download when proxy config or uv version changes
 ARG BUILD_PROXY
 RUN if [ -n "$BUILD_PROXY" ]; then \
         BUILD_PROXY_CONVERTED=$(/usr/local/bin/docker-set-proxy.sh "$BUILD_PROXY") && \
-        echo "使用代理下载 uv: $BUILD_PROXY_CONVERTED" && \
+        echo "Downloading uv with proxy: $BUILD_PROXY_CONVERTED" && \
         unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
         export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED" && \
         curl --proxy "$BUILD_PROXY_CONVERTED" -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \
         sh /tmp/uv-install.sh && \
         rm -f /tmp/uv-install.sh; \
     else \
-        echo "不使用代理下载 uv"; \
+        echo "Downloading uv without proxy"; \
         unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
         curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \
         sh /tmp/uv-install.sh && \
         rm -f /tmp/uv-install.sh; \
     fi
 
-# 验证 uv 安装（独立层，可缓存）
+# Verify uv installation (independent layer, cacheable)
 RUN export PATH="/root/.local/bin:$PATH" && \
     /root/.local/bin/uv --version
 
-# 复制项目文件（先复制配置文件，便于 uv sync）
+# Copy project files (copy config file first, convenient for uv sync)
 WORKDIR /app
 COPY pyproject.toml ./
 
-# 安装 Python（独立层，可缓存）
-# uv 会自动下载并管理 Python 3.11，Python 会缓存在 /root/.local/share/uv/python/
+# Install Python (independent layer, cacheable)
+# uv automatically downloads and manages Python 3.11, Python cached in /root/.local/share/uv/python/
 ARG BUILD_PROXY
 RUN export PATH="/root/.local/bin:$PATH" && \
     if [ -n "$BUILD_PROXY" ]; then \
@@ -74,40 +74,40 @@ RUN export PATH="/root/.local/bin:$PATH" && \
         unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
         export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED"; \
     fi && \
-    echo "使用 uv 安装 Python 3.11..." && \
+    echo "Installing Python 3.11 with uv..." && \
     uv python install 3.11 && \
     uv python list
 
-# 使用 uv sync 创建虚拟环境并安装依赖（独立层，只有依赖改变时才重新执行）
+# Use uv sync to create virtual environment and install dependencies (independent layer, only re-execute when dependencies change)
 ARG BUILD_PROXY
 RUN export PATH="/root/.local/bin:$PATH" && \
     if [ -n "$BUILD_PROXY" ]; then \
         BUILD_PROXY_CONVERTED=$(/usr/local/bin/docker-set-proxy.sh "$BUILD_PROXY") && \
         unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY || true && \
         export http_proxy="$BUILD_PROXY_CONVERTED" https_proxy="$BUILD_PROXY_CONVERTED" HTTP_PROXY="$BUILD_PROXY_CONVERTED" HTTPS_PROXY="$BUILD_PROXY_CONVERTED" && \
-        echo "已配置 uv 代理: $BUILD_PROXY_CONVERTED"; \
+        echo "Configured uv proxy: $BUILD_PROXY_CONVERTED"; \
     fi && \
-    echo "=== 使用 uv sync 安装依赖（构建阶段，需要编译工具）===" && \
+    echo "=== Installing dependencies with uv sync (build stage, requires build tools) ===" && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-        echo "检测到 ARM 架构，设置编译选项..." && \
+        echo "Detected ARM architecture, setting compilation options..." && \
         export CMAKE_ARGS="-DGGML_NATIVE=OFF -DCMAKE_C_FLAGS='-march=armv8-a' -DCMAKE_CXX_FLAGS='-march=armv8-a'" && \
         export GGML_NATIVE=OFF; \
     else \
-        echo "检测到架构: $ARCH，使用默认编译选项"; \
+        echo "Detected architecture: $ARCH, using default compilation options"; \
     fi && \
     uv sync --verbose && \
-    echo "=== uv sync 完成 ===" && \
-    # 验证虚拟环境和依赖
+    echo "=== uv sync completed ===" && \
+    # Verify virtual environment and dependencies
     ls -la /app/.venv/bin/ | head -10 && \
     /app/.venv/bin/python --version && \
     /app/.venv/bin/pip list | head -20
 
-# 最终阶段：只复制 uv、Python 和虚拟环境，不包含编译工具
+# Final stage: Only copy uv, Python and virtual environment, exclude build tools
 FROM debian:bookworm-slim
 
-# 配置 apt 代理（如果宿主机有代理）
-# 注意：只对 localhost 进行替换，其他代理地址（如 squid.corp.redhat.com）保持不变
+# Configure apt proxy (if host has proxy)
+# Note: Only replace localhost, other proxy addresses (like squid.corp.redhat.com) remain unchanged
 ARG BUILD_PROXY
 RUN if [ -n "$BUILD_PROXY" ]; then \
         if echo "$BUILD_PROXY" | grep -q "localhost"; then \
@@ -115,40 +115,40 @@ RUN if [ -n "$BUILD_PROXY" ]; then \
         else \
             BUILD_PROXY_CONVERTED="$BUILD_PROXY"; \
         fi && \
-        echo "配置 apt 代理: $BUILD_PROXY_CONVERTED" && \
+        echo "Configuring apt proxy: $BUILD_PROXY_CONVERTED" && \
         echo "Acquire::http::Proxy \"$BUILD_PROXY_CONVERTED\";" > /etc/apt/apt.conf.d/01proxy && \
         echo "Acquire::https::Proxy \"$BUILD_PROXY_CONVERTED\";" >> /etc/apt/apt.conf.d/01proxy; \
     fi
 
-# 配置 apt 重试和超时（与 builder 阶段一致）
+# Configure apt retry and timeout (consistent with builder stage)
 RUN echo 'Acquire::Retries "10";' >> /etc/apt/apt.conf.d/99-retries && \
     echo 'Acquire::http::Timeout "120";' >> /etc/apt/apt.conf.d/99-timeout && \
     echo 'Acquire::https::Timeout "120";' >> /etc/apt/apt.conf.d/99-timeout
 
-# 更新 apt 包列表（独立层，可缓存）
-# 注意：将 apt-get update 独立出来，只有代理配置改变时才重新执行
+# Update apt package list (independent layer, cacheable)
+# Note: Separate apt-get update, only re-execute when proxy config changes
 RUN apt-get update
 
-# 从builder阶段复制 uv、Python 和虚拟环境
-# uv 安装在 /root/.local/bin/uv
-# uv 管理的 Python 在 /root/.local/share/uv/python/
-# 虚拟环境在 /app/.venv/（包含所有已安装的依赖）
+# Copy uv, Python and virtual environment from builder stage
+# uv installed at /root/.local/bin/uv
+# uv-managed Python at /root/.local/share/uv/python/
+# Virtual environment at /app/.venv/ (contains all installed dependencies)
 COPY --from=builder /root/.local /root/.local
 COPY --from=builder /app/.venv /app/.venv
 
-# 安装运行时依赖（独立层，可缓存）
-# 注意：编译工具（build-essential, cmake）仅在 builder 阶段需要
-# 最终阶段只需要运行时库：
-#   - libgcc-s1（C++运行时）
-#   - libstdc++6（标准C++库）
-#   - libgomp1（OpenMP运行时，llama-cpp-python需要）
-# 使用重试机制处理网络问题
+# Install runtime dependencies (independent layer, cacheable)
+# Note: Build tools (build-essential, cmake) only needed in builder stage
+# Final stage only needs runtime libraries:
+#   - libgcc-s1 (C++ runtime)
+#   - libstdc++6 (standard C++ library)
+#   - libgomp1 (OpenMP runtime, required by llama-cpp-python)
+# Use retry mechanism to handle network issues
 RUN (apt-get install -y --no-install-recommends \
         ca-certificates \
         libgcc-s1 \
         libstdc++6 \
         libgomp1 || \
-     (echo "第一次安装失败，重试..." && \
+     (echo "First installation failed, retrying..." && \
       apt-get update && \
       apt-get install -y --no-install-recommends --fix-missing \
           ca-certificates \
@@ -156,54 +156,54 @@ RUN (apt-get install -y --no-install-recommends \
           libstdc++6 \
           libgomp1)) && \
     rm -rf /var/lib/apt/lists/* && \
-    echo "运行时依赖安装完成（仅运行时库，无编译工具）"
+    echo "Runtime dependencies installed (runtime libraries only, no build tools)"
 
-# 设置 PATH：确保 uv 和虚拟环境中的 Python 可用
+# Set PATH: Ensure uv and Python in virtual environment are available
 ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
 
-# 验证 uv、Python 和虚拟环境已正确复制，并修复 Python 链接
+# Verify uv, Python and virtual environment are correctly copied, and fix Python links
 RUN /root/.local/bin/uv --version && \
     /root/.local/bin/uv python list && \
     if [ -d "/app/.venv" ]; then \
-        echo "检查虚拟环境..." && \
-        # 查找 uv 管理的 Python 解释器路径
+        echo "Checking virtual environment..." && \
+        # Find uv-managed Python interpreter path
         PYTHON_PATH=$(/root/.local/bin/uv python list | grep "3.11" | head -1 | awk '{print $NF}' || echo "") && \
         if [ -n "$PYTHON_PATH" ] && [ -f "$PYTHON_PATH/bin/python3" ]; then \
-            echo "找到 Python 解释器: $PYTHON_PATH/bin/python3" && \
-            # 修复虚拟环境中的 Python 链接
+            echo "Found Python interpreter: $PYTHON_PATH/bin/python3" && \
+            # Fix Python links in virtual environment
             if [ -f "/app/.venv/bin/python3" ]; then \
                 rm -f /app/.venv/bin/python3 && \
                 ln -sf "$PYTHON_PATH/bin/python3" /app/.venv/bin/python3 && \
                 rm -f /app/.venv/bin/python && \
                 ln -sf python3 /app/.venv/bin/python && \
-                echo "已修复 Python 链接"; \
+                echo "Fixed Python links"; \
             fi && \
-            # 验证修复后的 Python
+            # Verify fixed Python
             /app/.venv/bin/python --version && \
-            echo "虚拟环境验证完成"; \
+            echo "Virtual environment verification completed"; \
         else \
-            echo "警告: 无法找到 Python 解释器，虚拟环境可能需要重新创建"; \
+            echo "Warning: Cannot find Python interpreter, virtual environment may need to be recreated"; \
         fi; \
     else \
-        echo "错误: 虚拟环境目录不存在"; \
+        echo "Error: Virtual environment directory does not exist"; \
     fi
 
-# 设置工作目录
+# Set working directory
 WORKDIR /app
 
-# 创建模型目录
-# 注意：模型文件通过Volume挂载，不会复制到镜像中
+# Create models directory
+# Note: Model files are mounted via Volume, not copied into image
 RUN mkdir -p models
 
-# 复制应用代码和配置文件
-# 先复制 pyproject.toml（虚拟环境已在构建时安装好依赖）
+# Copy application code and config files
+# Copy pyproject.toml first (virtual environment already has dependencies installed at build time)
 COPY pyproject.toml ./
-# 然后复制其他应用文件
+# Then copy other application files
 COPY *.py ./
 
-# 暴露端口
-# 8100: FastMCP服务器（SSE端点）
-# 8000: Chat服务器（HTTP API）
+# Expose ports
+# 8100: FastMCP server (SSE endpoint)
+# 8000: Chat server (HTTP API)
 EXPOSE 8100 8000
 
-# 启动命令由docker-compose.yml指定
+# Startup command specified by docker-compose.yml

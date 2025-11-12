@@ -1,23 +1,23 @@
-# FastMCP 极简示例
+# FastMCP Minimal Example
 
-这是一个基于 FastMCP 的极简示例，展示了如何构建一个完整的工具调用系统：
-- **FastMCP 服务器**：暴露计算工具接口（通过 MCP 协议和 SSE 传输）
-- **FastAPI Chat 服务器**：提供聊天服务，LLM 通过 MCP 客户端调用 FastMCP 工具
+This is a minimal example based on FastMCP, demonstrating how to build a complete tool calling system:
+- **FastMCP Server**: Exposes calculation tool interfaces (via MCP protocol and SSE transport)
+- **FastAPI Chat Server**: Provides chat service, LLM calls FastMCP tools through MCP client
 
 <img width="3840" height="2110" alt="b076f65573ef5b15190df9424cd20a12" src="https://github.com/user-attachments/assets/30232728-9b46-4393-8a54-8b09b26f685b" />
 
-## 相关项目：
+## Related Projects:
 
 - https://github.com/fastapi/fastapi
 - https://github.com/jlowin/fastmcp
 - https://github.com/ggml-org/llama.cpp
 - https://github.com/run-llama/llama_index
 
-## 使用模型
+## Model Used
 
 - https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF
 
-## 参考文档
+## Reference Documentation
 
 - https://developers.llamaindex.ai/python/examples/agent/react_agent/
 - https://www.ibm.com/think/topics/react-agent
@@ -28,82 +28,82 @@
 - https://www.anthropic.com/news/model-context-protocol
 - https://github.com/Kludex/starlette
 
-## 功能特性
+## Features
 
-- 🤖 **真实的LLM推理**：使用 Llama 3.1 8B 语言模型（支持原生tool_calls）
-- 💬 **友好对话**：支持自然语言对话，可以友好地回复问候和闲聊
-- 🛠️ **智能工具调用**：使用 LlamaIndex ReActAgent 自动处理工具调用，LLM 通过 MCP 协议调用 FastMCP 服务器提供的工具
-- 🔌 **FastMCP 集成**：使用 FastMCP 框架暴露工具，通过 SSE 协议提供工具接口
-- 🐳 Docker 容器化部署：支持多服务架构（FastMCP 服务器 + Chat 服务器）
-- 🌐 HTTP API 接口，支持 curl 交互
-- ⚡ 基于 llama.cpp 的 CPU 推理
-- 🛡️ 完善的错误处理和友好的错误提示
+- 🤖 **Real LLM Inference**: Uses Llama 3.1 8B language model (supports native tool_calls)
+- 💬 **Friendly Conversation**: Supports natural language dialogue, can friendly reply to greetings and casual chat
+- 🛠️ **Intelligent Tool Calling**: Uses LlamaIndex ReActAgent to automatically handle tool calls, LLM calls FastMCP server tools through MCP protocol
+- 🔌 **FastMCP Integration**: Uses FastMCP framework to expose tools, provides tool interfaces through SSE protocol
+- 🐳 Docker Containerized Deployment: Supports multi-service architecture (FastMCP server + Chat server)
+- 🌐 HTTP API interface, supports curl interaction
+- ⚡ CPU inference based on llama.cpp
+- 🛡️ Comprehensive error handling and friendly error messages
 
-## 快速开始
+## Quick Start
 
-### 1. 下载模型
+### 1. Download Model
 
-项目使用 **Llama 3.1 8B-Instruct** 模型（支持原生tool_calls）。
+The project uses **Llama 3.1 8B-Instruct** model (supports native tool_calls).
 
-**特点**：
-- 模型大小：约4.6GB
-- 内存需求：约8GB RAM
-- 工具调用：原生tool_calls支持，通过LlamaIndex自动处理
-- 推理速度：中等
-- **优势**：工具调用更准确、更可靠，上下文理解更好
+**Characteristics**:
+- Model size: ~4.6GB
+- Memory requirement: ~8GB RAM
+- Tool calling: Native tool_calls support, automatically handled by LlamaIndex
+- Inference speed: Medium
+- **Advantage**: More accurate and reliable tool calling, better context understanding
 
-**下载方法**：
+**Download Methods**:
 
-**重要**：Meta官方版本（`meta-llama/Llama-3.1-8B-Instruct`）需要登录认证。  
-**推荐**：使用社区公开量化版本（无需认证，功能相同）：
+**Important**: Meta official version (`meta-llama/Llama-3.1-8B-Instruct`) requires login authentication.  
+**Recommended**: Use community public quantized version (no authentication required, same functionality):
 
 ```bash
-# 方法1：使用wget直接下载（推荐，最简单）
+# Method 1: Direct download with wget (recommended, simplest)
 mkdir -p models
-# 从bartowski下载（公开版本，无需认证，约4.6GB）
+# Download from bartowski (public version, no authentication, ~4.6GB)
 wget -O models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
   "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
 
-# 注意：文件名必须为 Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf，否则服务无法启动
+# Note: Filename must be Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf, otherwise service cannot start
 
-# 方法2：使用huggingface-cli（bartowski版本，无需登录）
+# Method 2: Use huggingface-cli (bartowski version, no login required)
 pip install huggingface_hub
 huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF \
   --include "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf" --local-dir ./models
 ```
 
-**备选公开源**（都无需认证，按下载量排序）：
-- `bartowski/Meta-Llama-3.1-8B-Instruct-GGUF`（95k+下载，推荐）
-- `MaziyarPanahi/Meta-Llama-3.1-8B-Instruct-GGUF`（76.2k下载）
-- `QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF`（55.5k下载）
+**Alternative Public Sources** (all require no authentication, sorted by download count):
+- `bartowski/Meta-Llama-3.1-8B-Instruct-GGUF` (95k+ downloads, recommended)
+- `MaziyarPanahi/Meta-Llama-3.1-8B-Instruct-GGUF` (76.2k downloads)
+- `QuantFactory/Meta-Llama-3.1-8B-Instruct-GGUF` (55.5k downloads)
 
-**说明**：
-- 文件大小约4.6GB，确保有足够的磁盘空间
-- 模型文件名固定为：`Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
-- 文件必须放在 `./models/` 目录下
+**Notes**:
+- File size is ~4.6GB, ensure sufficient disk space
+- Model filename is fixed as: `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
+- File must be placed in `./models/` directory
 
-### 2. 构建和启动
+### 2. Build and Start
 
-#### 方法一：使用构建脚本（推荐）
+#### Method 1: Use Build Script (Recommended)
 ```bash
-# 1. 配置代理（可选）
+# 1. Configure proxy (optional)
 cp env.example .env
-# 编辑 .env 文件，设置你的代理配置
+# Edit .env file, set your proxy configuration
 
-# 2. 使用构建脚本
+# 2. Use build script
 ./build.sh
 
-# 3. 启动服务
+# 3. Start services
 docker-compose up
 ```
 
-#### 方法二：手动构建
+#### Method 2: Manual Build
 ```bash
-# 无代理环境
+# No proxy environment
 docker-compose build
 docker-compose up
 
-# 企业代理环境
+# Enterprise proxy environment
 export PROXY_URL=http://your-proxy:port
 export HTTP_PROXY=http://your-proxy:port
 export HTTPS_PROXY=http://your-proxy:port
@@ -113,134 +113,133 @@ docker-compose build --build-arg proxy_url=$PROXY_URL --build-arg http_proxy=$HT
 docker-compose up
 ```
 
-#### 配置说明
-- **PROXY_URL**: 代理服务器地址（如 `http://proxy.company.com:8080`）
-- **HTTP_PROXY/HTTPS_PROXY**: Docker 构建时的代理设置
-- **NO_PROXY**: 不使用代理的地址列表
+#### Configuration Notes
+- **PROXY_URL**: Proxy server address (e.g., `http://proxy.company.com:8080`)
+- **HTTP_PROXY/HTTPS_PROXY**: Proxy settings during Docker build
+- **NO_PROXY**: List of addresses that should not use proxy
 
-**注意**: 项目包含自动代理配置脚本 `install.sh`，会根据环境变量自动处理容器内部的代理设置。
+**Note**: The project includes an automatic proxy configuration script `install.sh`, which automatically handles proxy settings inside containers based on environment variables.
 
-服务将在以下地址启动：
-- **FastMCP 服务器**：`http://localhost:8100`（提供工具接口）
-- **Chat 服务器**：`http://localhost:8000`（提供聊天服务）
+Services will start at the following addresses:
+- **FastMCP Server**: `http://localhost:8100` (provides tool interfaces)
+- **Chat Server**: `http://localhost:8000` (provides chat service)
 
-**启动验证**：
-启动后查看日志，应该看到：
-- `正在加载模型: ./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
-- `模型加载完成`
-- `MCP服务器连接成功，发现 3 个工具`
-- `Agent初始化完成，工具调用将由LlamaIndex自动处理`
+**Startup Verification**:
+After startup, check logs, you should see:
+- `Loading model: ./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
+- `Model loaded successfully`
+- `MCP server connected successfully, found 3 tools`
+- `Agent initialization complete, tool calls will be automatically handled by LlamaIndex`
 
-**运行时日志**：
-- LlamaIndex会自动处理工具调用，日志会显示工具调用过程
-- 使用 `verbose=True` 可以看到详细的工具调用和响应信息
+**Runtime Logs**:
+- LlamaIndex will automatically handle tool calls, logs will show tool call process
+- Using `verbose=True` you can see detailed tool call and response information
 
-**注意**：
-- 需要先下载Llama 3.1 8B模型文件（约4.6GB）
-- 工具调用由LlamaIndex ReActAgent自动处理，无需手工解析
-- 支持原生tool_calls，无需文本解析
-- Agent最大迭代次数设置为10次，避免响应时间过长
-- 响应包含简洁答案（`response`）和完整原始输出（`raw_response`）
+**Notes**:
+- Need to download Llama 3.1 8B model file first (~4.6GB)
+- Tool calls are automatically handled by LlamaIndex ReActAgent, no manual parsing needed
+- Supports native tool_calls, no text parsing needed
+- Agent maximum iteration count set to 3, to avoid excessive response time
+- Response contains raw complete output (`raw_response`)
 
-### 4. 测试接口
+### 3. Test API
 
-#### 健康检查
+#### Health Check
 ```bash
 curl http://localhost:8000/health
 ```
-**预期输出**:
+**Expected Output**:
 ```json
 {"status":"healthy","agent_loaded":true,"mcp_available":true,"tools_count":3}
 ```
 
-**注意**：如果 `agent_loaded` 为 `false`，说明模型文件未找到或Agent初始化失败，需要先下载模型文件。
+**Note**: If `agent_loaded` is `false`, it means the model file was not found or Agent initialization failed, need to download model file first.
 
-#### 查看可用工具
+#### View Available Tools
 
-**注意**：FastMCP 服务器使用 SSE 协议（`/sse` 端点），不能直接通过 curl 访问。工具列表通过 Chat 服务器提供的 HTTP API 获取。
+**Note**: FastMCP server uses SSE protocol (`/sse` endpoint), cannot be accessed directly via curl. Tool list is obtained through HTTP API provided by Chat server.
 
-**从 Chat 服务器获取工具列表**：
+**Get tool list from Chat server**:
 ```bash
 curl http://localhost:8000/tools
 ```
 
-#### 聊天测试
+#### Chat Test
 
-**注意**: 
-1. 如果中文显示为 Unicode 转义字符（如 `\u6211`），可以使用 `jq` 或 `python3 -m json.tool` 来正确显示
-2. 请确保使用**英文引号**，而不是中文引号（""）
+**Notes**: 
+1. If Chinese displays as Unicode escape characters (like `\u6211`), you can use `jq` or `python3 -m json.tool` to display correctly
+2. Please ensure to use **English quotes**, not Chinese quotes ("")
 
 ```bash
-# 问候对话（自然语言回复）
+# Greeting conversation (natural language reply)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "你好"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "你好！有什么我可以帮助你的吗？",
+#   "raw_response": "你好！有什么我可以帮助你的吗？",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
-# 简单加法（工具调用）
+# Simple addition (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 5 + 3"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "8",  # 提取后的简洁答案
-#   "raw_response": "Thought: ... Answer: 8 ...",  # 完整的Agent输出
+#   "raw_response": "Thought: ... Answer: 8 ...",  # Complete Agent output
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
-# 乘法运算（工具调用）
+# Multiplication (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 4 * 7"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "计算结果: 28", 
+#   "raw_response": "Calculation result: 28", 
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
-# 表达式计算（工具调用）
+# Expression calculation (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 2+3*4"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "计算结果: 14",
+#   "raw_response": "Calculation result: 14",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
-# 复杂表达式（工具调用）
+# Complex expression (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "计算 3 * 7"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "计算结果: 21",
+#   "raw_response": "Calculation result: 21",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
-# 非计算消息（自然语言回复）
+# Non-calculation message (natural language reply)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "今天天气如何"}' | jq .
-# 预期输出:
+# Expected output:
 # {
-#   "response": "今天的天气取决于你所在的地方，你可以告诉我你在哪里吗？",
+#   "raw_response": "今天的天气取决于你所在的地方，你可以告诉我你在哪里吗？",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 ```
 
-**功能说明**：
-- 🧮 **计算请求**：当用户询问数学计算问题时，LLM会自动调用相应的工具进行计算
-- 💬 **友好对话**：当用户问候或闲聊时，LLM会以自然语言友好回复（不会调用工具）
-- 🔍 **智能识别**：LLM会自动识别用户意图，决定是使用工具还是直接回复
-- ⚡ **快速响应**：最大迭代次数限制为10次，确保响应时间合理
-- 📝 **双重响应**：返回简洁答案（`response`）和完整原始输出（`raw_response`）
+**Feature Description**:
+- 🧮 **Calculation Requests**: When users ask mathematical calculation questions, LLM will automatically call corresponding tools for calculation
+- 💬 **Friendly Conversation**: When users greet or chat casually, LLM will reply friendly in natural language (will not call tools)
+- 🔍 **Intelligent Recognition**: LLM will automatically recognize user intent, decide whether to use tools or reply directly
+- ⚡ **Fast Response**: Maximum iteration count limited to 3, ensuring reasonable response time
+- 📝 **Raw Response**: Returns complete raw output (`raw_response`)
 
-**替代方案**（如果系统没有安装 `jq`）：
+**Alternative** (if system doesn't have `jq` installed):
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
@@ -249,7 +248,7 @@ curl -X POST http://localhost:8000/chat \
 
 ## Project Architecture
 
-### 🔍 架构关系
+### 🔍 Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -298,12 +297,12 @@ curl -X POST http://localhost:8000/chat \
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**关键说明**：
-- **FastMCP 服务器**（端口8100）：通过 `@mcp.tool()` 装饰器注册工具，提供 SSE 端点（`/sse`）暴露 MCP 协议接口
-- **FastAPI Chat 服务器**（端口8000）：使用 llama-cpp-python 进行 LLM 推理，通过 MCP 客户端（BasicMCPClient）连接 FastMCP 服务器的 SSE 端点
-- **工作流程**：用户请求 → Chat 服务器 → LLM 分析 → MCP 协议（SSE）调用 FastMCP 工具 → 返回结果 → LLM 生成最终回复
+**Key Points**:
+- **FastMCP Server** (port 8100): Registers tools through `@mcp.tool()` decorator, provides SSE endpoint (`/sse`) to expose MCP protocol interface
+- **FastAPI Chat Server** (port 8000): Uses llama-cpp-python for LLM inference, connects to FastMCP server's SSE endpoint through MCP client (BasicMCPClient)
+- **Workflow**: User request → Chat server → LLM analysis → MCP protocol (SSE) calls FastMCP tools → Returns result → LLM generates final reply
 
-### 🚀 数据流示例
+### 🚀 Data Flow Example
 
 **User Request: "Calculate 25 + 17"**
 
@@ -331,224 +330,224 @@ curl -X POST http://localhost:8000/chat \
    {"response": "Calculation result: 42", "tools_available": [...]}
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 fastmcp_demo/
-├── Dockerfile              # Docker 配置
-├── docker-compose.yml      # Docker Compose 配置（两个服务：mcp-server + chat-server）
-├── pyproject.toml          # Python 项目配置和依赖（使用 uv 管理）
-├── install.sh             # 自动安装脚本（处理代理配置）
-├── build.sh               # 构建脚本（支持环境变量配置）
-├── start_servers.sh       # 本地启动脚本（同时启动两个服务）
-├── env.example            # 环境配置示例文件
-├── mcp_server.py          # FastMCP 服务器（端口8100）
-├── chat_server.py         # FastAPI Chat 服务器（端口8000）
-├── models/                # 模型文件目录（Volume 挂载）
-└── README.md              # 使用说明
+├── Dockerfile              # Docker configuration
+├── docker-compose.yml      # Docker Compose configuration (two services: mcp-server + chat-server)
+├── pyproject.toml          # Python project configuration and dependencies (managed with uv)
+├── install.sh             # Automatic installation script (handles proxy configuration)
+├── build.sh               # Build script (supports environment variable configuration)
+├── start_servers.sh       # Local startup script (starts both services simultaneously)
+├── env.example            # Environment configuration example file
+├── mcp_server.py          # FastMCP server (port 8100)
+├── chat_server.py         # FastAPI Chat server (port 8000)
+├── models/                # Model file directory (Volume mount)
+└── README.md              # Usage instructions
 ```
 
-## 技术栈
+## Technology Stack
 
-- **FastMCP 框架**: FastMCP >= 0.1.0（MCP 协议实现）
-- **MCP 协议**: Model Context Protocol（工具调用协议）
-- **LlamaIndex**: >= 0.10.0（自动处理工具调用的Agent框架）
-- **AI 模型**: Llama 3.1 8B-Instruct-GGUF（支持原生tool_calls）
-- **推理引擎**: llama-cpp-python（基于 llama.cpp）
-- **LLM 库**: llama-cpp-python >= 0.2.0
-- **Web 框架**: FastAPI >= 0.104.0（Chat 服务器）
-- **HTTP 客户端**: httpx >= 0.25.0（MCP 客户端）
-- **ASGI 服务器**: uvicorn >= 0.24.0
-- **容器化**: Docker + Docker Compose
-- **代理处理**: 自动代理配置脚本
+- **FastMCP Framework**: FastMCP >= 0.1.0 (MCP protocol implementation)
+- **MCP Protocol**: Model Context Protocol (tool calling protocol)
+- **LlamaIndex**: >= 0.10.0 (Agent framework that automatically handles tool calls)
+- **AI Model**: Llama 3.1 8B-Instruct-GGUF (supports native tool_calls)
+- **Inference Engine**: llama-cpp-python (based on llama.cpp)
+- **LLM Library**: llama-cpp-python >= 0.2.0
+- **Web Framework**: FastAPI >= 0.104.0 (Chat server)
+- **HTTP Client**: httpx >= 0.25.0 (MCP client)
+- **ASGI Server**: uvicorn >= 0.24.0
+- **Containerization**: Docker + Docker Compose
+- **Proxy Handling**: Automatic proxy configuration script
 
-## 模型信息
+## Model Information
 
-### Llama 3.1 8B-Instruct（默认，推荐）
+### Llama 3.1 8B-Instruct (Default, Recommended)
 
-- **参数量**: 8B
-- **量化**: Q4_K_M (约4.6GB)
-- **内存需求**: 约8GB RAM
-- **工具调用**: **更强的工具调用能力**（工具调用更准确可靠）
-- **推理**: CPU 推理，无需 GPU
-- **速度**: 中等（但工具调用更可靠）
-- **优势**: 更好的工具调用能力，更准确可靠
+- **Parameters**: 8B
+- **Quantization**: Q4_K_M (~4.6GB)
+- **Memory Requirement**: ~8GB RAM
+- **Tool Calling**: **Stronger tool calling capability** (more accurate and reliable tool calling)
+- **Inference**: CPU inference, no GPU required
+- **Speed**: Medium (but tool calling is more reliable)
+- **Advantage**: Better tool calling capability, more accurate and reliable
 
 
-## 运行模式
+## Running Modes
 
-项目**默认使用真实LLM模式**，需要下载模型文件才能运行。模型文件会在启动时自动加载，并进行真实的推理计算。
+The project **defaults to real LLM mode**, requires downloading model files to run. Model files will be automatically loaded at startup and perform real inference calculations.
 
-### 真实LLM模式（默认）
-项目使用真实的 Llama 3.1 8B 模型进行推理：
-- ✅ **真实LLM推理**：使用 llama-cpp-python 实际调用模型
-- ✅ **智能工具调用**：使用LlamaIndex ReActAgent自动处理工具调用
-- ✅ **原生tool_calls支持**：Llama 3.1 8B支持原生tool_calls，无需文本解析
-- ✅ **友好对话**：支持自然语言对话，可以友好回复问候和闲聊
-- ✅ **错误处理**：完善的参数验证和错误提示
-- ⚠️ **需要模型文件**：必须下载模型文件到 `./models/` 目录才能运行
+### Real LLM Mode (Default)
+The project uses real Llama 3.1 8B model for inference:
+- ✅ **Real LLM Inference**: Uses llama-cpp-python to actually call the model
+- ✅ **Intelligent Tool Calling**: Uses LlamaIndex ReActAgent to automatically handle tool calls
+- ✅ **Native tool_calls Support**: Llama 3.1 8B supports native tool_calls, no text parsing needed
+- ✅ **Friendly Conversation**: Supports natural language dialogue, can friendly reply to greetings and casual chat
+- ✅ **Error Handling**: Comprehensive parameter validation and error messages
+- ⚠️ **Requires Model File**: Must download model file to `./models/` directory to run
 
-如果模型文件不存在，服务将无法启动并显示错误信息。
+If model file does not exist, the service will fail to start and display error message.
 
-## 注意事项
+## Important Notes
 
-1. **模型文件必需**: 必须下载Llama 3.1 8B模型文件（约4.6GB）到 `./models/` 目录，否则服务无法启动
-2. **内存要求**: 建议至少 8GB 可用内存（模型约需要8GB RAM）
-3. **网络连接**: 首次下载模型需要良好的网络连接
-4. **代理环境**: 企业网络环境需要配置代理，详见构建说明
-5. **请求格式**: 使用 curl 时请确保JSON使用英文引号，例如 `'{"message": "你好"}'`
-6. **工具调用**: 工具调用由LlamaIndex自动处理，无需手工解析或配置
+1. **Model File Required**: Must download Llama 3.1 8B model file (~4.6GB) to `./models/` directory, otherwise service cannot start
+2. **Memory Requirement**: Recommend at least 8GB available memory (model requires ~8GB RAM)
+3. **Network Connection**: First-time model download requires good network connection
+4. **Proxy Environment**: Enterprise network environments need to configure proxy, see build instructions for details
+5. **Request Format**: When using curl, ensure JSON uses English quotes, e.g., `'{"message": "你好"}'`
+6. **Tool Calling**: Tool calls are automatically handled by LlamaIndex, no manual parsing or configuration needed
 
-## 大模型使用原理
+## LLM Usage Principles
 
-### 1. 架构概览
+### 1. Architecture Overview
 
-项目采用**双服务器架构**：
-- **FastMCP 服务器**（`mcp_server.py`）：通过 `@mcp.tool()` 装饰器注册工具，通过 SSE 协议（`/sse` 端点）暴露 MCP 协议接口
-- **Chat 服务器**（`chat_server.py`）：使用 llama-cpp-python 进行 LLM 推理，通过 MCP 客户端（BasicMCPClient）连接 FastMCP 服务器的 SSE 端点
+The project adopts a **dual-server architecture**:
+- **FastMCP Server** (`mcp_server.py`): Registers tools through `@mcp.tool()` decorator, exposes MCP protocol interface through SSE protocol (`/sse` endpoint)
+- **Chat Server** (`chat_server.py`): Uses llama-cpp-python for LLM inference, connects to FastMCP server's SSE endpoint through MCP client (BasicMCPClient)
 
-### 2. FastMCP 服务器
+### 2. FastMCP Server
 
 ```python
-# 创建 FastMCP 实例
+# Create FastMCP instance
 mcp = FastMCP("MathTools")
 
-# 注册工具
+# Register tools
 @mcp.tool()
 def add_numbers(a: float, b: float) -> float:
-    """两数相加"""
+    """Add two numbers"""
     return add(a, b)
 
-# 启动服务器（通过 SSE 传输协议）
-# FastMCP 工具注册后，通过 SSE 端点 (/sse) 自动暴露 MCP 协议接口
+# Start server (via SSE transport protocol)
+# After FastMCP tools are registered, MCP protocol interface is automatically exposed through SSE endpoint (/sse)
 mcp.run(transport="sse")
 ```
 
-**FastMCP 服务器功能**：
-- 通过 `@mcp.tool()` 装饰器注册工具（`add_numbers`, `multiply_numbers`, `calculate_expression`）
-- 使用 SSE 传输协议提供 MCP 协议接口：
-  - SSE 端点：`http://0.0.0.0:8100/sse`
-  - 工具列表和调用通过 MCP 协议自动暴露
-- FastMCP 框架通过 SSE 协议自动处理工具注册和调用
+**FastMCP Server Features**:
+- Registers tools through `@mcp.tool()` decorator (`add_numbers`, `multiply_numbers`, `calculate_expression`)
+- Provides MCP protocol interface using SSE transport protocol:
+  - SSE endpoint: `http://0.0.0.0:8100/sse`
+  - Tool list and calls are automatically exposed through MCP protocol
+- FastMCP framework automatically handles tool registration and calls through SSE protocol
 
-### 3. Chat 服务器与 LLM 推理（使用LlamaIndex自动处理）
+### 3. Chat Server and LLM Inference (Automatically Handled by LlamaIndex)
 
-#### a) 模型加载和Agent初始化
+#### a) Model Loading and Agent Initialization
 ```python
 from llama_index.llms.llama_cpp import LlamaCPP
 from llama_index.tools.mcp import McpToolSpec, BasicMCPClient
 from llama_index.core.agent import ReActAgent
 
-# 加载Llama模型
+# Load Llama model
 llm = LlamaCPP(
-    model_path=model_path,  # Llama 3.1 8B GGUF文件
+    model_path=model_path,  # Llama 3.1 8B GGUF file
     temperature=0.1,
     max_new_tokens=256,
     context_window=4096,
     model_kwargs={"n_threads": 6},
 )
 
-# 连接到FastMCP服务器获取工具（通过SSE端点）
+# Connect to FastMCP server to get tools (via SSE endpoint)
 mcp_sse_url = "http://localhost:8100/sse"
 client = BasicMCPClient(command_or_url=mcp_sse_url, timeout=10)
 tool_spec = McpToolSpec(client=client)
-tools = await tool_spec.to_tool_list_async()  # 异步获取工具列表
+tools = await tool_spec.to_tool_list_async()  # Async get tool list
 
-# 创建ReActAgent（自动处理工具调用）
+# Create ReActAgent (automatically handles tool calls)
 agent = ReActAgent.from_tools(
     tools=tools,
     llm=llm,
     verbose=True,
-    system_prompt="你是一个友善的数学计算助手..."
+    system_prompt="You are a friendly math calculation assistant..."
 )
 ```
 
-#### b) 工具调用流程（自动处理）
+#### b) Tool Call Flow (Automatically Handled)
 
-**LlamaIndex ReActAgent自动处理所有工具调用**：
+**LlamaIndex ReActAgent automatically handles all tool calls**:
 
 ```python
-# 用户请求
+# User request
 handler = agent.run(
-    user_msg="计算 25 + 17",
+    user_msg="Calculate 25 + 17",
     memory=ChatMemoryBuffer(token_limit=3000),
     ctx=Context(agent),
-    max_iterations=10  # 最大迭代次数，避免响应时间过长
+    max_iterations=3  # Maximum iteration count, avoid excessive response time
 )
 result = await handler
 
-# LlamaIndex会自动：
-# 1. 分析用户请求
-# 2. 决定是否需要调用工具
-# 3. 如果需要，生成tool_calls（原生格式）
-# 4. 执行工具调用
-# 5. 将结果反馈给LLM
-# 6. 生成最终回复
+# LlamaIndex will automatically:
+# 1. Analyze user request
+# 2. Decide if tool call is needed
+# 3. If needed, generate tool_calls (native format)
+# 4. Execute tool call
+# 5. Feed result back to LLM
+# 6. Generate final reply
 ```
 
-**优势**：
-- ✅ 无需手工解析工具调用
-- ✅ 自动处理原生tool_calls格式
-- ✅ 支持多轮工具调用
-- ✅ 完善的错误处理和重试机制
-- ✅ 智能响应提取：从完整输出中提取简洁答案
-- ✅ 迭代次数限制：最大10次迭代，避免长时间等待
+**Advantages**:
+- ✅ No manual parsing of tool calls needed
+- ✅ Automatically handles native tool_calls format
+- ✅ Supports multiple rounds of tool calls
+- ✅ Comprehensive error handling and retry mechanism
+- ✅ Raw response: Returns complete raw output
+- ✅ Iteration count limit: Maximum 3 iterations, avoid long wait times
 
-### 4. 完整工作流程示例
+### 4. Complete Workflow Example
 
-当用户发送 `"计算 25 + 17"` 时：
+When user sends `"Calculate 25 + 17"`:
 
-1. **用户请求** → Chat 服务器（`POST /chat`）
-2. **LlamaIndex Agent分析**：ReActAgent自动决定需要调用工具
-3. **生成tool_calls**：Agent生成原生格式的tool_calls（`add_numbers(a=25, b=17)`）
-4. **自动执行工具**：LlamaIndex通过MCP协议调用FastMCP工具
-5. **FastMCP 执行工具**：调用 `add_numbers(25, 17)` → 返回 `42`
-6. **生成最终回复**：Agent将结果反馈给LLM，生成友好回复
-7. **返回最终结果**：`"计算结果: 42"`
+1. **User Request** → Chat Server (`POST /chat`)
+2. **LlamaIndex Agent Analysis**: ReActAgent automatically decides tool call is needed
+3. **Generate tool_calls**: Agent generates native format tool_calls (`add_numbers(a=25, b=17)`)
+4. **Automatically Execute Tool**: LlamaIndex calls FastMCP tool through MCP protocol
+5. **FastMCP Executes Tool**: Calls `add_numbers(25, 17)` → Returns `42`
+6. **Generate Final Reply**: Agent feeds result back to LLM, generates friendly reply
+7. **Return Final Result**: `"Calculation result: 42"`
 
-### 5. 为什么使用LlamaIndex？
+### 5. Why Use LlamaIndex?
 
-**重要说明**：使用LlamaIndex框架自动处理工具调用，无需手工解析。
+**Important Note**: Uses LlamaIndex framework to automatically handle tool calls, no manual parsing needed.
 
-#### LlamaIndex的优势
+#### LlamaIndex Advantages
 
-1. **自动处理工具调用**
-   - ✅ 自动识别何时需要调用工具
-   - ✅ 自动处理原生tool_calls格式
-   - ✅ 无需手工解析文本或JSON
+1. **Automatic Tool Call Handling**
+   - ✅ Automatically recognizes when tool call is needed
+   - ✅ Automatically handles native tool_calls format
+   - ✅ No manual parsing of text or JSON needed
 
-2. **完善的Agent架构**
-   - ✅ ReActAgent实现了思考-行动-观察循环
-   - ✅ 支持多轮工具调用
-   - ✅ 自动处理工具执行结果
+2. **Comprehensive Agent Architecture**
+   - ✅ ReActAgent implements think-act-observe loop
+   - ✅ Supports multiple rounds of tool calls
+   - ✅ Automatically handles tool execution results
 
-3. **与MCP协议深度集成**
-   - ✅ `McpToolSpec`自动从FastMCP服务器获取工具
-   - ✅ 支持SSE协议通信
-   - ✅ 自动转换工具格式
+3. **Deep Integration with MCP Protocol**
+   - ✅ `McpToolSpec` automatically gets tools from FastMCP server
+   - ✅ Supports SSE protocol communication
+   - ✅ Automatically converts tool formats
 
-#### 关键特点
+#### Key Features
 
-- **MCP 协议**：使用 FastMCP 框架标准化的工具调用方式
-- **LlamaIndex集成**：通过LlamaIndex自动处理所有工具调用逻辑
-- **双服务器架构**：工具服务器和聊天服务器分离，职责清晰
-- **原生tool_calls支持**：Llama 3.1 8B支持原生tool_calls，LlamaIndex自动处理
-- **本地推理**：模型完全在本地运行，无需网络（除了初始下载）
-- **CPU优化**：使用 llama.cpp 进行高效的CPU推理，无需GPU
+- **MCP Protocol**: Uses FastMCP framework standardized tool calling method
+- **LlamaIndex Integration**: Automatically handles all tool calling logic through LlamaIndex
+- **Dual-Server Architecture**: Tool server and chat server separated, clear responsibilities
+- **Native tool_calls Support**: Llama 3.1 8B supports native tool_calls, automatically handled by LlamaIndex
+- **Local Inference**: Model runs completely locally, no network needed (except initial download)
+- **CPU Optimized**: Uses llama.cpp for efficient CPU inference, no GPU needed
 
-## 故障排除
+## Troubleshooting
 
-### 代理相关问题
-如果在企业网络环境中遇到连接问题：
+### Proxy Related Issues
+If you encounter connection issues in enterprise network environments:
 
-1. **使用配置文件**（推荐）：
+1. **Use Configuration File** (Recommended):
    ```bash
    cp env.example .env
-   # 编辑 .env 文件，设置正确的代理地址
+   # Edit .env file, set correct proxy address
    ./build.sh
    ```
 
-2. **手动设置环境变量**：
+2. **Manually Set Environment Variables**:
    ```bash
    export PROXY_URL=http://your-proxy:port
    export HTTP_PROXY=http://your-proxy:port
@@ -556,32 +555,32 @@ result = await handler
    ./build.sh
    ```
 
-3. **检查代理连通性**：
+3. **Check Proxy Connectivity**:
    ```bash
    curl -I --proxy $PROXY_URL https://pypi.org
    ```
 
-4. **重新构建**：
+4. **Rebuild**:
    ```bash
    docker-compose build --no-cache --build-arg proxy_url=$PROXY_URL --build-arg http_proxy=$HTTP_PROXY --build-arg https_proxy=$HTTPS_PROXY
    ```
 
-### 模型文件不存在
-如果服务启动失败，提示模型文件不存在：
-1. 确保已下载模型文件到 `./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
-2. 检查文件路径是否正确（相对路径为 `./models/`）
-3. 验证文件权限，确保可读
-4. 查看服务器日志了解详细错误信息
+### Model File Not Found
+If service startup fails, prompting model file not found:
+1. Ensure model file is downloaded to `./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf`
+2. Check if file path is correct (relative path is `./models/`)
+3. Verify file permissions, ensure readable
+4. Check server logs for detailed error information
 
-### 内存不足
-如果遇到内存不足，可以尝试：
-- 减少 `n_ctx` 参数（在 server.py 中，默认2048）
-- 减少 `n_threads` 参数（在 server.py 中，默认4）
-- 使用更小的量化版本模型（如 Q2_K 或 Q3_K_M）
-- 关闭其他占用内存的程序
+### Insufficient Memory
+If encountering insufficient memory, you can try:
+- Reduce `n_ctx` parameter (in chat_server.py, default 4096)
+- Reduce `n_threads` parameter (in chat_server.py, default 6)
+- Use smaller quantized version model (like Q2_K or Q3_K_M)
+- Close other memory-consuming programs
 
-### 超时和性能调优
-如果遇到超时错误（"Agent 处理超时"），可以根据硬件配置调整以下参数：
+### Timeout and Performance Tuning
+If encountering timeout errors ("Agent processing timeout"), you can adjust the following parameters based on hardware configuration:
 
 #### 1. 调整 Token 生成参数（chat_server.py）
 
