@@ -174,17 +174,17 @@ curl http://localhost:8000/tools
 # Greeting conversation (natural language reply)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "你好"}' | jq .
+  -d '{"message": "Hello"}' | jq .
 # Expected output:
 # {
-#   "raw_response": "你好！有什么我可以帮助你的吗？",
+#   "raw_response": "Hello! How can I help you?",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 
 # Simple addition (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 5 + 3"}' | jq .
+  -d '{"message": "Calculate 5 + 3"}' | jq .
 # Expected output:
 # {
 #   "raw_response": "Thought: ... Answer: 8 ...",  # Complete Agent output
@@ -194,7 +194,7 @@ curl -X POST http://localhost:8000/chat \
 # Multiplication (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 4 * 7"}' | jq .
+  -d '{"message": "Calculate 4 * 7"}' | jq .
 # Expected output:
 # {
 #   "raw_response": "Calculation result: 28", 
@@ -204,7 +204,7 @@ curl -X POST http://localhost:8000/chat \
 # Expression calculation (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 2+3*4"}' | jq .
+  -d '{"message": "Calculate 2+3*4"}' | jq .
 # Expected output:
 # {
 #   "raw_response": "Calculation result: 14",
@@ -214,7 +214,7 @@ curl -X POST http://localhost:8000/chat \
 # Complex expression (tool call)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 3 * 7"}' | jq .
+  -d '{"message": "Calculate 3 * 7"}' | jq .
 # Expected output:
 # {
 #   "raw_response": "Calculation result: 21",
@@ -224,10 +224,10 @@ curl -X POST http://localhost:8000/chat \
 # Non-calculation message (natural language reply)
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "今天天气如何"}' | jq .
+  -d '{"message": "What is the weather today?"}' | jq .
 # Expected output:
 # {
-#   "raw_response": "今天的天气取决于你所在的地方，你可以告诉我你在哪里吗？",
+#   "raw_response": "The weather today depends on your location. Can you tell me where you are?",
 #   "tools_available": ["add_numbers", "multiply_numbers", "calculate_expression"]
 # }
 ```
@@ -243,7 +243,7 @@ curl -X POST http://localhost:8000/chat \
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "计算 5 + 3"}' | python3 -m json.tool
+  -d '{"message": "Calculate 5 + 3"}' | python3 -m json.tool
 ```
 
 ## Project Architecture
@@ -395,7 +395,7 @@ If model file does not exist, the service will fail to start and display error m
 2. **Memory Requirement**: Recommend at least 8GB available memory (model requires ~8GB RAM)
 3. **Network Connection**: First-time model download requires good network connection
 4. **Proxy Environment**: Enterprise network environments need to configure proxy, see build instructions for details
-5. **Request Format**: When using curl, ensure JSON uses English quotes, e.g., `'{"message": "你好"}'`
+5. **Request Format**: When using curl, ensure JSON uses English quotes, e.g., `'{"message": "Hello"}'`
 6. **Tool Calling**: Tool calls are automatically handled by LlamaIndex, no manual parsing or configuration needed
 
 ## LLM Usage Principles
@@ -582,199 +582,200 @@ If encountering insufficient memory, you can try:
 ### Timeout and Performance Tuning
 If encountering timeout errors ("Agent processing timeout"), you can adjust the following parameters based on hardware configuration:
 
-#### 1. 调整 Token 生成参数（chat_server.py）
+#### 1. Adjust Token Generation Parameters (chat_server.py)
 
-**位置**：`chat_server.py` 第 79-90 行
+**Location**: `chat_server.py` lines 79-90
 
 ```python
 llm = LlamaCPP(
     model_path=model_path,
     temperature=0.1,
-    max_new_tokens=256,  # 可调整：128-512，数值越大生成内容越多，但耗时更长
+    max_new_tokens=256,  # Adjustable: 128-512, larger value generates more content but takes longer
     context_window=4096,
     verbose=False,
     model_kwargs={
-        "n_threads": 6,      # 可调整：根据CPU核心数设置，建议为物理核心数
-        "n_predict": 256,    # 应与 max_new_tokens 保持一致
+        "n_threads": 6,      # Adjustable: Set based on CPU cores, recommend physical core count
+        "n_predict": 256,    # Should match max_new_tokens
     },
 )
 ```
 
-**调整建议**：
-- **快速响应**（较低CPU）：`max_new_tokens=128`, `n_predict=128`
-- **平衡**（中等CPU）：`max_new_tokens=256`, `n_predict=256`（默认）
-- **完整回复**（高性能CPU）：`max_new_tokens=512`, `n_predict=512`
+**Adjustment Recommendations**:
+- **Fast Response** (Lower CPU): `max_new_tokens=128`, `n_predict=128`
+- **Balanced** (Medium CPU): `max_new_tokens=256`, `n_predict=256` (default)
+- **Complete Response** (High Performance CPU): `max_new_tokens=512`, `n_predict=512`
 
-#### 2. 调整超时时间（chat_server.py）
+#### 2. Adjust Timeout (chat_server.py)
 
-**位置**：`chat_server.py` 第 299 行
-
-```python
-result = await asyncio.wait_for(handler, timeout=120.0)  # 可调整：60-300秒
-```
-
-**调整建议**：
-- **快速硬件**（8核+CPU，高频率）：60-90秒
-- **中等硬件**（4-6核CPU）：120秒（默认）
-- **较慢硬件**（2-4核CPU，低频率）：180-300秒
-
-**计算公式**（粗略估算）：
-```
-超时时间 ≈ (max_new_tokens / 10) + 工具调用时间（5-10秒）
-```
-
-例如：`max_new_tokens=256` → 超时时间 ≈ 25-35秒 + 5-10秒 ≈ 30-45秒（实际建议设置为 2-3 倍，即 60-120 秒）
-
-#### 3. 调整 Agent 迭代次数（chat_server.py）
-
-**位置**：`chat_server.py` 第 294 行
+**Location**: `chat_server.py` line 299
 
 ```python
-max_iterations=3  # 可调整：1-5，简单计算通常只需要1次迭代
+result = await asyncio.wait_for(handler, timeout=120.0)  # Adjustable: 60-300 seconds
 ```
 
-**调整建议**：
-- **简单计算**：`max_iterations=1-2`（更快响应）
-- **复杂问题**：`max_iterations=3-5`（允许多次工具调用）
+**Adjustment Recommendations**:
+- **Fast Hardware** (8+ cores CPU, high frequency): 60-90 seconds
+- **Medium Hardware** (4-6 cores CPU): 120 seconds (default)
+- **Slower Hardware** (2-4 cores CPU, low frequency): 180-300 seconds
 
-#### 4. 性能优化建议
+**Calculation Formula** (rough estimate):
+```
+Timeout ≈ (max_new_tokens / 10) + Tool call time (5-10 seconds)
+```
 
-**根据硬件配置选择参数组合**：
+Example: `max_new_tokens=256` → Timeout ≈ 25-35 seconds + 5-10 seconds ≈ 30-45 seconds (actually recommend setting to 2-3 times, i.e., 60-120 seconds)
 
-| CPU 核心数 | 推荐 max_new_tokens | 推荐 timeout | 推荐 n_threads |
-|-----------|-------------------|--------------|---------------|
-| 2-4 核    | 128               | 180-240 秒   | 2-4           |
-| 4-6 核    | 256               | 120-180 秒   | 4-6           |
-| 6-8 核    | 256-512           | 90-120 秒    | 6-8           |
-| 8+ 核     | 512               | 60-90 秒     | 8+            |
+#### 3. Adjust Agent Iteration Count (chat_server.py)
 
-**注意**：
-- 参数调整后需要重启服务才能生效
-- 如果频繁超时，优先考虑减少 `max_new_tokens` 而不是增加 `timeout`
-- CPU 推理速度较慢，这是正常现象，考虑使用 GPU 加速可以显著提升性能
-
-### System Prompt 配置说明
-如果遇到 Agent 行为不符合预期（如频繁调用工具、循环调用等），可以调整或移除 system_prompt：
-
-#### System Prompt 的作用
-
-**位置**：`chat_server.py` 第 138-166 行
-
-当前 system_prompt 的主要作用：
-1. **限制工具调用次数**：明确指示"每次请求最多只调用一次工具"，避免循环调用
-2. **明确使用场景**：只在数学计算时使用工具，问候和闲聊不使用工具
-3. **指导 Agent 行为**：提供清晰的工作流程和示例
-
-#### 是否可以去掉 System Prompt？
-
-**是的，技术上可以去掉。**
-
-ReActAgent 可以在没有 `system_prompt` 的情况下正常工作：
+**Location**: `chat_server.py` line 294
 
 ```python
-agent = ReActAgent(
-    tools=tools if tools else None,
-    llm=llm,
-    verbose=True,
-    # system_prompt=system_prompt  # 可以注释掉或删除
-)
+max_iterations=3  # Adjustable: 1-5, simple calculations usually only need 1 iteration
 ```
 
-或者设置为 `None`：
+**Adjustment Recommendations**:
+- **Simple Calculations**: `max_iterations=1-2` (faster response)
+- **Complex Problems**: `max_iterations=3-5` (allows multiple tool calls)
+
+#### 4. Performance Optimization Recommendations
+
+**Choose Parameter Combinations Based on Hardware Configuration**:
+
+| CPU Cores | Recommended max_new_tokens | Recommended timeout | Recommended n_threads |
+|-----------|---------------------------|---------------------|----------------------|
+| 2-4 cores | 128                       | 180-240 seconds     | 2-4                  |
+| 4-6 cores | 256                       | 120-180 seconds     | 4-6                  |
+| 6-8 cores | 256-512                   | 90-120 seconds      | 6-8                  |
+| 8+ cores  | 512                       | 60-90 seconds       | 8+                   |
+
+**Notes**:
+- Parameters take effect after service restart
+- If frequent timeouts, prioritize reducing `max_new_tokens` rather than increasing `timeout`
+- CPU inference is slow, this is normal, consider using GPU acceleration to significantly improve performance
+
+### System Prompt Configuration
+
+If encountering Agent behavior that doesn't meet expectations (such as frequent tool calls, loop calls, etc.), you can adjust or remove system_prompt:
+
+#### Role of System Prompt
+
+**Location**: `chat_server.py` lines 138-166
+
+Main roles of current system_prompt:
+1. **Limit Tool Call Count**: Clearly instructs "call at most one tool per request" to avoid loop calls
+2. **Clarify Usage Scenarios**: Only use tools for mathematical calculations, greetings and casual chat do not use tools
+3. **Guide Agent Behavior**: Provides clear workflow and examples
+
+#### Can System Prompt Be Removed?
+
+**Yes, technically it can be removed.**
+
+ReActAgent can work normally without `system_prompt`:
 
 ```python
 agent = ReActAgent(
     tools=tools if tools else None,
     llm=llm,
     verbose=True,
-    system_prompt=None  # 明确设置为 None
+    # system_prompt=system_prompt  # Can be commented out or deleted
 )
 ```
 
-#### 去掉 System Prompt 的影响
+Or set to `None`:
 
-**仍然可以工作**：
-- ✅ ReActAgent 会使用默认的 system prompt
-- ✅ 工具调用功能正常
-- ✅ 基本推理能力不受影响
+```python
+agent = ReActAgent(
+    tools=tools if tools else None,
+    llm=llm,
+    verbose=True,
+    system_prompt=None  # Explicitly set to None
+)
+```
 
-**但会有行为差异**：
-- ⚠️ 没有明确的工具调用限制，Agent 可能会多次调用工具（可能出现之前遇到的循环调用问题）
-- ⚠️ 没有"只调用一次工具"的明确指导
-- ⚠️ 没有针对数学计算的专门指导，可能对任何问题都尝试调用工具
-- ⚠️ 对于问候和闲聊也可能尝试调用工具
+#### Impact of Removing System Prompt
 
-#### 何时需要保留 System Prompt？
+**Still Works**:
+- ✅ ReActAgent will use default system prompt
+- ✅ Tool calling functionality works normally
+- ✅ Basic reasoning ability not affected
 
-**建议保留**，如果遇到以下问题：
-- Agent 循环调用工具
-- Agent 在不该使用工具的场景下调用工具（如问候语）
-- Agent 对同一个问题多次调用工具
-- 希望严格控制 Agent 的行为
+**But There Will Be Behavioral Differences**:
+- ⚠️ No clear tool call limits, Agent may call tools multiple times (may encounter loop call issues as before)
+- ⚠️ No clear guidance on "call tool only once"
+- ⚠️ No specific guidance for mathematical calculations, may try to call tools for any question
+- ⚠️ May also try to call tools for greetings and casual chat
 
-#### 何时可以去掉 System Prompt？
+#### When Should System Prompt Be Kept?
 
-可以考虑去掉，如果：
-- 希望 Agent 有更灵活的行为
-- 允许多次工具调用（复杂任务需要多步骤）
-- 使用默认的 Agent 行为已经满足需求
+**Recommend keeping** if encountering the following issues:
+- Agent loops calling tools
+- Agent calls tools in scenarios where it shouldn't (like greetings)
+- Agent calls tools multiple times for the same question
+- Want to strictly control Agent behavior
 
-**结论**：
-- ✅ **技术上可行**：去掉 `system_prompt` 也可以运行
-- ⚠️ **功能可能受影响**：可能恢复循环调用工具等问题
-- 💡 **建议保留**：当前的 `system_prompt` 解决了之前的工具调用问题
+#### When Can System Prompt Be Removed?
 
-### JSON格式错误
-如果遇到 `400 Bad Request` 或 JSON 格式错误：
-- 确保使用**英文引号**，不要使用中文引号
-- 检查JSON格式是否正确，例如：`'{"message": "你好"}'`
-- 查看错误响应中的详细提示和示例
-- 可以使用文件方式发送请求避免转义问题：
+Can consider removing if:
+- Want Agent to have more flexible behavior
+- Allow multiple tool calls (complex tasks require multiple steps)
+- Default Agent behavior already meets requirements
+
+**Conclusion**:
+- ✅ **Technically Feasible**: Can run without `system_prompt`
+- ⚠️ **Functionality May Be Affected**: May restore loop tool calling issues
+- 💡 **Recommend Keeping**: Current `system_prompt` solved previous tool calling issues
+
+### JSON Format Error
+If encountering `400 Bad Request` or JSON format errors:
+- Ensure to use **English quotes**, do not use Chinese quotes
+- Check if JSON format is correct, e.g., `'{"message": "Hello"}'`
+- Check detailed prompts and examples in error response
+- Can use file method to send requests to avoid escape issues:
   ```bash
-  echo '{"message": "你好"}' | curl -X POST http://localhost:8000/chat \
+  echo '{"message": "Hello"}' | curl -X POST http://localhost:8000/chat \
     -H "Content-Type: application/json" \
     -d @- | jq .
   ```
 
-### 端口冲突
-如果端口被占用：
-- **8000 端口（Chat 服务器）**：在 `docker-compose.yml` 中修改 `chat-server` 的端口映射
-- **8100 端口（FastMCP 服务器）**：在 `docker-compose.yml` 中修改 `mcp-server` 的端口映射，并更新 `chat_server.py` 中的 `MCP_SERVER_URL` 环境变量
+### Port Conflict
+If port is occupied:
+- **Port 8000 (Chat Server)**: Modify `chat-server` port mapping in `docker-compose.yml`
+- **Port 8100 (FastMCP Server)**: Modify `mcp-server` port mapping in `docker-compose.yml`, and update `MCP_SERVER_URL` environment variable in `chat_server.py`
 
-### FastMCP 服务器连接失败
-如果 Chat 服务器无法连接到 FastMCP 服务器：
-1. 确保 FastMCP 服务器已启动（`mcp-server` 服务）
-2. 检查 `MCP_SERVER_URL` 环境变量是否正确（Docker 内部使用 `http://mcp-server:8100`，本地使用 `http://localhost:8100`）
-3. 查看日志确认两个服务都在运行
-4. Chat 服务器启动时会自动重试连接（最多15次，每次间隔2秒）
+### FastMCP Server Connection Failed
+If Chat server cannot connect to FastMCP server:
+1. Ensure FastMCP server is started (`mcp-server` service)
+2. Check if `MCP_SERVER_URL` environment variable is correct (use `http://mcp-server:8100` inside Docker, `http://localhost:8100` locally)
+3. Check logs to confirm both services are running
+4. Chat server will automatically retry connection on startup (up to 15 times, 2 seconds interval)
 
-### Agent 迭代次数达到上限
-如果遇到 `Max iterations of 10 reached!` 错误：
-1. **正常现象**：表示 Agent 在10次迭代内无法完成任务
-2. **解决方案**：
-   - 将复杂问题拆分为更简单的步骤
-   - 重新表述问题，使其更清晰明确
-   - 检查输入是否有误（如输入不完整）
-3. **响应格式**：即使达到迭代上限，也会返回友好的错误提示
+### Agent Reached Maximum Iteration Count
+If encountering `Max iterations of 3 reached!` error:
+1. **Normal Phenomenon**: Indicates Agent cannot complete task within 3 iterations
+2. **Solutions**:
+   - Break complex problems into simpler steps
+   - Rephrase question to make it clearer and more explicit
+   - Check if input has errors (like incomplete input)
+3. **Response Format**: Even when reaching iteration limit, will return friendly error message
 
-### 构建失败
-如果 Docker 构建失败：
-1. 检查网络连接
-2. 确认代理配置正确
-3. 尝试清理 Docker 缓存：`docker system prune -a`
-4. 使用 `--no-cache` 重新构建
+### Build Failed
+If Docker build fails:
+1. Check network connection
+2. Confirm proxy configuration is correct
+3. Try cleaning Docker cache: `docker system prune -a`
+4. Rebuild with `--no-cache`
 
-## MCP 协议交互分析报告
+## MCP Protocol Interaction Analysis Report
 
-本节基于实际的日志输出，详细分析一次完整的 MCP 协议交互流程，帮助理解 chat-server 和 mcp-server 之间的通信过程。
+This section is based on actual log output, providing detailed analysis of a complete MCP protocol interaction flow to help understand the communication process between chat-server and mcp-server.
 
-### 请求场景
+### Request Scenario
 
-用户向 chat-server 发送请求：`计算 10 + 20 * 2`
+User sends request to chat-server: `Calculate 10 + 20 * 2`
 
-### 完整的交互流程
+### Complete Interaction Flow
 
-#### 1. SSE 连接建立
+#### 1. SSE Connection Establishment
 
 **chat-server → mcp-server**
 
@@ -782,7 +783,7 @@ agent = ReActAgent(
 chat-server-1  | 2025-11-03 04:18:30,522 - httpx - INFO - HTTP Request: GET http://mcp-server:8100/sse "HTTP/1.1 200 OK"
 ```
 
-**mcp-server 日志：**
+**mcp-server logs:**
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,520 - mcp.server.sse - DEBUG - Setting up SSE connection
@@ -791,19 +792,19 @@ mcp-server-1   | 2025-11-03 04:18:30,521 - mcp.server.sse - DEBUG - Starting SSE
 mcp-server-1   | INFO:     172.21.0.3:39074 - "GET /sse HTTP/1.1" 200 OK
 ```
 
-**说明**：chat-server 通过 GET 请求建立 SSE 长连接，mcp-server 创建新的会话并返回会话 ID。
+**Explanation**: chat-server establishes SSE long connection through GET request, mcp-server creates new session and returns session ID.
 
 ---
 
-#### 2. 初始化阶段（initialize）
+#### 2. Initialization Phase (initialize)
 
-**chat-server → mcp-server**（POST /messages/）
+**chat-server → mcp-server** (POST /messages/)
 
 ```
 chat-server-1  | 2025-11-03 04:18:30,524 - httpx - INFO - HTTP Request: POST http://mcp-server:8100/messages/?session_id=bdd2d4d9feb543318891f4a747248ee1 "HTTP/1.1 202 Accepted"
 ```
 
-**mcp-server 日志 - 接收请求：**
+**mcp-server logs - receiving request:**
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Handling POST message
@@ -812,16 +813,16 @@ mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Received JSO
 mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='initialize', params={'protocolVersion': '2025-06-18', 'capabilities': {}, 'clientInfo': {'name': 'mcp', 'version': '0.1.0'}}, jsonrpc='2.0', id=0)
 ```
 
-**mcp-server → chat-server**（通过 SSE 流返回响应）
+**mcp-server → chat-server** (returns response via SSE stream)
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,524 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=0, result={'protocolVersion': '2025-06-18', 'capabilities': {...}, 'serverInfo': {'name': 'MathTools', 'version': '1.20.0'}})), metadata=None)
 ```
 
-**格式化后的响应（通过日志格式化器）：**
+**Formatted response (via log formatter):**
 
 ```
-mcp-server-1   | 2025-11-03 04:18:30,524 - sse_starlette.sse - DEBUG - [SSE Chunk - 已格式化]
+mcp-server-1   | 2025-11-03 04:18:30,524 - sse_starlette.sse - DEBUG - [SSE Chunk - Formatted]
 mcp-server-1   | {
 mcp-server-1   |   "jsonrpc": "2.0",
 mcp-server-1   |   "id": 0,
@@ -841,13 +842,13 @@ mcp-server-1   |   }
 mcp-server-1   | }
 ```
 
-**说明**：
-- chat-server 发送 `initialize` 请求，包含协议版本和客户端信息
-- mcp-server 返回服务器能力信息和服务器信息（名称、版本）
+**Explanation**:
+- chat-server sends `initialize` request, containing protocol version and client information
+- mcp-server returns server capability information and server information (name, version)
 
 ---
 
-#### 3. 初始化完成通知（notifications/initialized）
+#### 3. Initialization Complete Notification (notifications/initialized)
 
 **chat-server → mcp-server**
 
@@ -856,11 +857,11 @@ mcp-server-1   | 2025-11-03 04:18:30,526 - mcp.server.sse - DEBUG - Received JSO
 mcp-server-1   | 2025-11-03 04:18:30,526 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCNotification(method='notifications/initialized', params=None, jsonrpc='2.0')
 ```
 
-**说明**：chat-server 通知 mcp-server 初始化已完成（这是 MCP 协议的标准流程）。
+**Explanation**: chat-server notifies mcp-server that initialization is complete (this is the standard MCP protocol flow).
 
 ---
 
-#### 4. 工具列表查询（tools/list）
+#### 4. Tool List Query (tools/list)
 
 **chat-server → mcp-server**
 
@@ -869,7 +870,7 @@ mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.sse - DEBUG - Received JSO
 mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='tools/list', params=None, jsonrpc='2.0', id=1)
 ```
 
-**mcp-server 处理请求：**
+**mcp-server processing request:**
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
@@ -877,13 +878,13 @@ mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - DEBUG - 
 mcp-server-1   | 2025-11-03 04:18:30,530 - mcp.server.lowlevel.server - DEBUG - Response sent
 ```
 
-**mcp-server → chat-server**（返回工具列表）
+**mcp-server → chat-server** (returns tool list)
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,531 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=1, result={'tools': [...]})))
 ```
 
-**格式化后的工具列表响应：**
+**Formatted tool list response:**
 
 ```
 mcp-server-1   | {
@@ -893,19 +894,19 @@ mcp-server-1   |   "result": {
 mcp-server-1   |     "tools": [
 mcp-server-1   |       {
 mcp-server-1   |         "name": "add_numbers",
-mcp-server-1   |         "description": "计算两个数字的加法。\n重要：仅在用户明确要求进行加法计算时使用此工具...",
+mcp-server-1   |         "description": "Calculate the sum of two numbers.\nImportant: Only use this tool when the user explicitly requests addition calculation...",
 mcp-server-1   |         "inputSchema": {...},
 mcp-server-1   |         "outputSchema": {...}
 mcp-server-1   |       },
 mcp-server-1   |       {
 mcp-server-1   |         "name": "multiply_numbers",
-mcp-server-1   |         "description": "计算两个数字的乘法。\n重要：仅在用户明确要求进行乘法计算时使用此工具...",
+mcp-server-1   |         "description": "Calculate the product of two numbers.\nImportant: Only use this tool when the user explicitly requests multiplication calculation...",
 mcp-server-1   |         "inputSchema": {...},
 mcp-server-1   |         "outputSchema": {...}
 mcp-server-1   |       },
 mcp-server-1   |       {
 mcp-server-1   |         "name": "calculate_expression",
-mcp-server-1   |         "description": "计算数学表达式。表达式必须只包含数字和基本运算符...",
+mcp-server-1   |         "description": "Calculate a mathematical expression. The expression must only contain numbers and basic operators...",
 mcp-server-1   |         "inputSchema": {...},
 mcp-server-1   |         "outputSchema": {...}
 mcp-server-1   |       }
@@ -914,39 +915,39 @@ mcp-server-1   |   }
 mcp-server-1   | }
 ```
 
-**说明**：
-- chat-server 请求工具列表
-- mcp-server 返回所有可用工具及其描述、输入输出模式
-- 工具描述包含使用场景说明，帮助 Agent 决定何时使用哪个工具
+**Explanation**:
+- chat-server requests tool list
+- mcp-server returns all available tools with their descriptions, input/output schemas
+- Tool descriptions contain usage scenario explanations to help Agent decide when to use which tool
 
 ---
 
-#### 5. 工具调用（tools/call）
+#### 5. Tool Call (tools/call)
 
-**chat-server → mcp-server**（请求调用 `calculate_expression` 工具）
+**chat-server → mcp-server** (request to call `calculate_expression` tool)
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,527 - mcp.server.sse - DEBUG - Received JSON: b'{"method":"tools/call","params":{"name":"calculate_expression","arguments":{"expression":"10 + 20 * 2"}},"jsonrpc":"2.0","id":1}'
 mcp-server-1   | 2025-11-03 04:18:30,527 - mcp.server.sse - DEBUG - Validated client message: root=JSONRPCRequest(method='tools/call', params={'name': 'calculate_expression', 'arguments': {'expression': '10 + 20 * 2'}}, jsonrpc='2.0', id=1)
 ```
 
-**mcp-server 处理工具调用：**
+**mcp-server processing tool call:**
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,528 - mcp.server.lowlevel.server - INFO - Processing request of type CallToolRequest
 mcp-server-1   | 2025-11-03 04:18:30,528 - mcp.server.lowlevel.server - DEBUG - Dispatching request of type CallToolRequest
 mcp-server-1   | 2025-11-03 04:18:30,528 - __main__ - INFO - [FastMCP Tool] calculate_expression(expression='10 + 20 * 2')
-mcp-server-1   | 2025-11-03 04:18:30,528 - __main__ - INFO - [FastMCP Tool] calculate_expression 结果: 50.0
+mcp-server-1   | 2025-11-03 04:18:30,528 - __main__ - INFO - [FastMCP Tool] calculate_expression result: 50.0
 mcp-server-1   | 2025-11-03 04:18:30,529 - mcp.server.lowlevel.server - DEBUG - Response sent
 ```
 
-**mcp-server → chat-server**（返回工具执行结果）
+**mcp-server → chat-server** (returns tool execution result)
 
 ```
 mcp-server-1   | 2025-11-03 04:18:30,529 - mcp.server.sse - DEBUG - Sending message via SSE: SessionMessage(message=JSONRPCMessage(root=JSONRPCResponse(jsonrpc='2.0', id=1, result={'content': [{'type': 'text', 'text': '50.0'}], 'structuredContent': {'result': 50.0}, 'isError': False})), metadata=None)
 ```
 
-**格式化后的工具调用响应：**
+**Formatted tool call response:**
 
 ```
 mcp-server-1   | {
@@ -967,16 +968,16 @@ mcp-server-1   |   }
 mcp-server-1   | }
 ```
 
-**说明**：
-- chat-server（Agent）根据用户请求决定调用 `calculate_expression` 工具，参数为 `"10 + 20 * 2"`
-- mcp-server 执行工具函数，计算结果为 `50.0`
-- mcp-server 返回格式化的结果，包含文本格式和结构化格式
+**Explanation**:
+- chat-server (Agent) decides to call `calculate_expression` tool based on user request, parameter is `"10 + 20 * 2"`
+- mcp-server executes tool function, calculation result is `50.0`
+- mcp-server returns formatted result, containing both text format and structured format
 
 ---
 
-#### 6. 最终响应
+#### 6. Final Response
 
-**chat-server 返回给用户：**
+**chat-server returns to user:**
 
 ```json
 {
@@ -991,97 +992,97 @@ mcp-server-1   | }
 
 ---
 
-### 关键发现
+### Key Findings
 
-1. **双向通信**：
-   - chat-server → mcp-server：通过 `POST /messages/` 发送 JSON-RPC 请求
-   - mcp-server → chat-server：通过 SSE 流返回 JSON-RPC 响应
+1. **Bidirectional Communication**:
+   - chat-server → mcp-server: Sends JSON-RPC requests via `POST /messages/`
+   - mcp-server → chat-server: Returns JSON-RPC responses via SSE stream
 
-2. **会话管理**：
-   - 每个 SSE 连接有唯一的 `session_id`
-   - 所有请求都通过 `?session_id=xxx` 参数关联到同一个会话
+2. **Session Management**:
+   - Each SSE connection has a unique `session_id`
+   - All requests are associated with the same session through `?session_id=xxx` parameter
 
-3. **请求-响应匹配**：
-   - JSON-RPC 协议通过 `id` 字段匹配请求和响应
-   - 例如：初始化请求 `id=0`，对应的响应也是 `id=0`
+3. **Request-Response Matching**:
+   - JSON-RPC protocol matches requests and responses through `id` field
+   - For example: initialization request `id=0`, corresponding response is also `id=0`
 
-4. **工具调用流程**：
-   - Agent 先获取工具列表（了解可用工具）
-   - Agent 分析用户请求，决定调用哪个工具
-   - Agent 发送 `tools/call` 请求，包含工具名称和参数
-   - mcp-server 执行工具并返回结果
-   - Agent 将结果整合到最终回复中
+4. **Tool Call Flow**:
+   - Agent first gets tool list (understand available tools)
+   - Agent analyzes user request, decides which tool to call
+   - Agent sends `tools/call` request, containing tool name and parameters
+   - mcp-server executes tool and returns result
+   - Agent integrates result into final reply
 
-5. **日志格式化器的作用**：
-   - 自动格式化 JSON-RPC 消息，使其更易读
-   - 将中文 Unicode 转义序列转换为可读中文
-   - 格式化 SSE chunk 中的 JSON 数据
-   - 帮助开发者理解 MCP 协议的详细交互过程
+5. **Role of Log Formatter**:
+   - Automatically formats JSON-RPC messages for readability
+   - Converts Unicode escape sequences to readable text
+   - Formats JSON data in SSE chunks
+   - Helps developers understand detailed MCP protocol interaction process
 
-### 日志查看技巧
+### Log Viewing Tips
 
-1. **查看完整的 MCP 交互**：在 mcp-server 日志中搜索 `Sending message via SSE` 或 `Received JSON`
-2. **查看工具执行**：搜索 `[FastMCP Tool]` 查看工具的实际执行情况
-3. **查看格式化后的 JSON**：搜索 `[SSE Chunk - 已格式化]` 查看格式化后的 JSON 响应
-4. **跟踪会话**：通过 `session_id` 跟踪同一会话的所有请求和响应
+1. **View Complete MCP Interaction**: Search for `Sending message via SSE` or `Received JSON` in mcp-server logs
+2. **View Tool Execution**: Search for `[FastMCP Tool]` to view actual tool execution
+3. **View Formatted JSON**: Search for `[SSE Chunk - Formatted]` to view formatted JSON responses
+4. **Track Sessions**: Track all requests and responses of the same session through `session_id`
 
-### 协议流程图
+### Protocol Flow Diagram
 
 ```
-用户请求: "计算 10 + 20 * 2"
+User Request: "Calculate 10 + 20 * 2"
     ↓
 chat-server (Agent)
     ↓
-1. GET /sse (建立 SSE 连接)
+1. GET /sse (Establish SSE connection)
     ↓
 2. POST /messages/ (initialize)
     ↓
 3. POST /messages/ (notifications/initialized)
     ↓
-4. POST /messages/ (tools/list) ← mcp-server 返回工具列表
+4. POST /messages/ (tools/list) ← mcp-server returns tool list
     ↓
-5. Agent 分析：需要调用 calculate_expression
+5. Agent analysis: Need to call calculate_expression
     ↓
-6. POST /messages/ (tools/call) ← mcp-server 执行工具并返回结果
+6. POST /messages/ (tools/call) ← mcp-server executes tool and returns result
     ↓
-7. Agent 生成最终回复
+7. Agent generates final reply
     ↓
-返回给用户: {"raw_response": "...", "tools_available": [...]}
+Return to user: {"raw_response": "...", "tools_available": [...]}
 ```
 
 ---
 
-**注意**：以上日志基于 DEBUG 级别的日志输出。默认情况下，MCP 相关日志已设置为 DEBUG 级别，并使用自定义格式化器进行格式化，确保 JSON 数据以易读格式输出，中文正确显示。
+**Note**: The above logs are based on DEBUG level log output. By default, MCP related logs are set to DEBUG level and use custom formatter for formatting, ensuring JSON data is output in readable format.
 
-## 调试和容器命令
+## Debugging and Container Commands
 
-### 进入容器进行调试
+### Enter Container for Debugging
 
-当需要深入调试或排查问题时，可以进入容器执行命令。
+When you need to debug in depth or troubleshoot issues, you can enter the container to execute commands.
 
-#### 查看运行中的容器
+#### View Running Containers
 
 ```bash
 docker ps
 ```
 
-#### 进入 mcp-server 容器
+#### Enter mcp-server Container
 
 ```bash
 docker exec -it fastmcp_demo-mcp-server-1 /bin/bash
 ```
 
-#### 进入 chat-server 容器
+#### Enter chat-server Container
 
 ```bash
 docker exec -it fastmcp_demo-chat-server-1 /bin/bash
 ```
 
-### 常用调试命令
+### Common Debugging Commands
 
-#### 1. 检查 FastMCP 实例属性
+#### 1. Check FastMCP Instance Attributes
 
-在 mcp-server 容器中检查 FastMCP 实例的结构：
+Check FastMCP instance structure in mcp-server container:
 
 ```bash
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
@@ -1091,36 +1092,36 @@ print('app:', hasattr(mcp, 'app'))
 print('_app:', hasattr(mcp, '_app'))
 print('sse_app:', hasattr(mcp, 'sse_app'))
 print('streamable_http_app:', hasattr(mcp, 'streamable_http_app'))
-print('包含 app 的属性:', [x for x in dir(mcp) if 'app' in x.lower()])
+print('Attributes containing app:', [x for x in dir(mcp) if 'app' in x.lower()])
 "
 ```
 
-**输出示例：**
+**Output Example:**
 ```
 app: False
 _app: False
 sse_app: True
 streamable_http_app: True
-包含 app 的属性: ['sse_app', 'streamable_http_app']
+Attributes containing app: ['sse_app', 'streamable_http_app']
 ```
 
-#### 2. 检查 Python 环境和依赖
+#### 2. Check Python Environment and Dependencies
 
 ```bash
-# 检查 Python 版本
+# Check Python version
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python --version
 
-# 检查已安装的包
+# Check installed packages
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/pip list
 
-# 检查特定包
+# Check specific package
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/pip show fastmcp
 ```
 
-#### 3. 检查日志配置
+#### 3. Check Log Configuration
 
 ```bash
-# 在容器内测试日志格式化器
+# Test log formatter inside container
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
 import logging
 import json
@@ -1140,129 +1141,129 @@ print(formatter.format(record))
 "
 ```
 
-#### 4. 检查 MCP 工具注册
+#### 4. Check MCP Tool Registration
 
 ```bash
-# 检查工具是否正确注册
+# Check if tools are correctly registered
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
 from mcp_server import mcp
-print('FastMCP 实例:', mcp)
-print('工具数量:', len([x for x in dir(mcp) if not x.startswith('_')]))
+print('FastMCP instance:', mcp)
+print('Tool count:', len([x for x in dir(mcp) if not x.startswith('_')]))
 "
 ```
 
-#### 5. 测试工具函数
+#### 5. Test Tool Functions
 
 ```bash
-# 直接测试工具函数
+# Directly test tool functions
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
 from mcp_server import calculate_expression
 result = calculate_expression('10 + 20 * 2')
-print('计算结果:', result)
+print('Calculation result:', result)
 "
 ```
 
-#### 6. 检查网络连接
+#### 6. Check Network Connection
 
 ```bash
-# 从 chat-server 容器测试连接到 mcp-server
+# Test connection from chat-server container to mcp-server
 docker exec fastmcp_demo-chat-server-1 /bin/bash -c "
 curl -v http://mcp-server:8100/sse 2>&1 | head -20
 "
 
-# 从 mcp-server 容器测试自身
+# Test from mcp-server container to itself
 docker exec fastmcp_demo-mcp-server-1 /bin/bash -c "
 curl -v http://localhost:8100/sse 2>&1 | head -20
 "
 ```
 
-#### 7. 查看实时日志
+#### 7. View Real-time Logs
 
 ```bash
-# 查看 mcp-server 日志
+# View mcp-server logs
 docker logs -f fastmcp_demo-mcp-server-1
 
-# 查看 chat-server 日志
+# View chat-server logs
 docker logs -f fastmcp_demo-chat-server-1
 
-# 同时查看两个服务的日志
+# View logs of both services simultaneously
 docker-compose logs -f
 ```
 
-#### 8. 检查环境变量
+#### 8. Check Environment Variables
 
 ```bash
-# 查看 mcp-server 环境变量
+# View mcp-server environment variables
 docker exec fastmcp_demo-mcp-server-1 env
 
-# 查看 chat-server 环境变量
+# View chat-server environment variables
 docker exec fastmcp_demo-chat-server-1 env
 ```
 
-#### 9. 检查文件系统
+#### 9. Check File System
 
 ```bash
-# 检查模型文件是否存在
+# Check if model file exists
 docker exec fastmcp_demo-chat-server-1 ls -lh /app/models/
 
-# 检查虚拟环境
+# Check virtual environment
 docker exec fastmcp_demo-mcp-server-1 ls -la /app/.venv/bin/ | head -20
 
-# 检查代码文件
+# Check code files
 docker exec fastmcp_demo-mcp-server-1 cat /app/mcp_server.py | head -50
 ```
 
-### 调试技巧
+### Debugging Tips
 
-1. **使用交互式 Python Shell**：
+1. **Use Interactive Python Shell**:
    ```bash
    docker exec -it fastmcp_demo-mcp-server-1 /app/.venv/bin/python
    ```
-   然后在 Python shell 中导入模块进行交互式调试：
+   Then import modules in Python shell for interactive debugging:
    ```python
    >>> from mcp_server import mcp
    >>> import inspect
    >>> print(inspect.getmembers(mcp))
    ```
 
-2. **修改代码并重新加载**：
-   - 如果使用 Docker volumes 挂载代码，修改后容器会自动检测变化（如果使用开发模式）
-   - 或者需要重启容器：`docker-compose restart mcp-server`
+2. **Modify Code and Reload**:
+   - If using Docker volumes to mount code, container will automatically detect changes (if using development mode)
+   - Or need to restart container: `docker-compose restart mcp-server`
 
-3. **启用更详细的日志**：
-   - 在容器内修改日志级别或添加临时日志语句
-   - 查看格式化后的日志输出
+3. **Enable More Detailed Logs**:
+   - Modify log level or add temporary log statements inside container
+   - View formatted log output
 
-4. **网络调试**：
-   - 使用 `curl` 或 `wget` 测试 HTTP 端点
-   - 检查端口是否开放：`netstat -tlnp`（如果可用）
+4. **Network Debugging**:
+   - Use `curl` or `wget` to test HTTP endpoints
+   - Check if port is open: `netstat -tlnp` (if available)
 
-### 常见问题排查
+### Common Issue Troubleshooting
 
-#### 问题：容器无法启动
+#### Issue: Container Cannot Start
 
 ```bash
-# 查看容器启动日志
+# View container startup logs
 docker logs fastmcp_demo-mcp-server-1
 
-# 检查容器状态
+# Check container status
 docker ps -a | grep fastmcp_demo
 ```
 
-#### 问题：模块导入错误
+#### Issue: Module Import Error
 
 ```bash
-# 检查 Python 路径
+# Check Python path
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "import sys; print(sys.path)"
 
-# 检查模块是否可以导入
-docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "import mcp_server; print('导入成功')"
+# Check if module can be imported
+docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "import mcp_server; print('Import successful')"
 ```
 
-#### 问题：工具调用失败
+#### Issue: Tool Call Failed
 
 ```bash
-# 直接测试工具函数
+# Directly test tool functions
 docker exec fastmcp_demo-mcp-server-1 /app/.venv/bin/python -c "
 from mcp_server import add_numbers, multiply_numbers, calculate_expression
 print('add_numbers(2, 3):', add_numbers(2, 3))
@@ -1273,4 +1274,4 @@ print('calculate_expression(\"10+20*2\"):', calculate_expression('10+20*2'))
 
 ---
 
-**提示**：以上命令可以帮助快速定位问题。如果遇到无法解决的问题，可以查看完整的容器日志或联系维护者。
+**Tip**: The above commands can help quickly locate issues. If you encounter unsolvable problems, you can check complete container logs or contact maintainers.
